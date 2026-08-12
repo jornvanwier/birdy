@@ -33,7 +33,7 @@ pub struct FlightModel {
     pub rudder_authority: f32,
     pub aileron_authority: f32,
 
-    /// Rotational damping factors (prevents endless spin/oscillations)
+    /// Rotational damping factors in local space (prevents endless spin/oscillations)
     pub angular_damping: Vec3,
 }
 
@@ -50,12 +50,12 @@ impl Default for FlightModel {
             center_of_thrust_offset: Vec3::new(0.0, 0.0, 1.5),
             // 1.2m behind CoM
             tail_offset: Vec3::new(0.0, 0.0, 1.2),
-            tail_fin_area: 1.5,
+            tail_fin_area: 0.5,
             aileron_wing_position: 1.0,
-            elevator_authority: 0.1,
-            rudder_authority: 0.12,
-            aileron_authority: 0.05,
-            angular_damping: Vec3::new(1.2, 1.2, 2.0),
+            elevator_authority: 0.01,
+            rudder_authority: 0.05,
+            aileron_authority: 0.01,
+            angular_damping: Vec3::new(1.2, 8.0, 2.0),
         }
     }
 }
@@ -85,6 +85,9 @@ pub fn apply_flight_forces(
 
         let velocity = forces.linear_velocity();
         let speed = velocity.length();
+
+        let world_angular_velocity = forces.angular_velocity();
+        let local_angular_velocity = rotation.inverse() * world_angular_velocity;
 
         // Thrust
         let thrust_magnitude = flight_model.max_thrust * throttle.current;
@@ -126,9 +129,16 @@ pub fn apply_flight_forces(
                 rotation,
             );
 
+            // let side_speed = velocity.dot(right);
+            // let slip_ratio = side_speed / speed;
+            // Tail fin side drag (dynamic weathercocking + aerodynamic yaw damping)
+
             // Tail fin side drag (dynamic weathercocking)
-            let side_speed = velocity.dot(right);
-            let slip_ratio = side_speed / speed;
+            // Combined linear side speed + rotational speed of the tail fin (omega * radius)
+            let tail_rotational_side_speed = local_angular_velocity.y * flight_model.tail_offset.z;
+            let total_tail_side_speed = velocity.dot(right) + tail_rotational_side_speed;
+            let slip_ratio = total_tail_side_speed / speed;
+
             let side_drag_force =
                 -right * (dynamic_pressure * flight_model.tail_fin_area * slip_ratio);
             apply_force_at_offset(
@@ -176,8 +186,9 @@ pub fn apply_flight_forces(
             apply_force_at_offset(&mut forces, -aileron_force, right_wing_offset, rotation);
 
             // Angular Damping (Prevents harmonic spring bobbing)
-            let damping = -forces.angular_velocity() * flight_model.angular_damping;
-            forces.apply_angular_acceleration(damping);
+            let local_damping = -local_angular_velocity * flight_model.angular_damping;
+            let world_damping = rotation * local_damping;
+            forces.apply_angular_acceleration(world_damping);
         }
     }
 }

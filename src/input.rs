@@ -26,13 +26,13 @@ pub fn create_input_map() -> InputMap<Action> {
         .with_dual_axis(Action::RollPitch, VirtualDPad::wasd())
         .with_dual_axis(Action::RollPitch, VirtualDPad::arrow_keys())
         .with_dual_axis(Action::RollPitch, GamepadStick::LEFT)
-        // Yaw: Q (Left) / E (Right) or Gamepad Triggers
+        // Yaw: Q (Left) / E (Right) or Gamepad Rear Buttons
         .with_axis(
             Action::Yaw,
             VirtualAxis::new(KeyCode::KeyQ, KeyCode::KeyE),
         )
         .with_axis(
             Action::Yaw,
-            VirtualAxis::new(GamepadButton::LeftTrigger2, GamepadButton::RightTrigger2),
+            VirtualAxis::new(GamepadButton::LeftTrigger, GamepadButton::RightTrigger),
         )
 }

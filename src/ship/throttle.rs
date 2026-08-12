@@ -33,8 +33,6 @@ pub(crate) fn handle_throttle(
     time: Res<Time>,
     mut query: Query<(&ActionState<Action>, &mut Throttle)>,
 ) {
-    info!("Handling throttle");
-
     for (action_state, mut throttle) in query.iter_mut() {
         let delta = action_state.value(&Action::Throttle);
 

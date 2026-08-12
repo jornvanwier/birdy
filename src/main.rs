@@ -1,9 +1,13 @@
+mod input;
 pub mod ship;
 
+use crate::input::Action;
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_inspector_egui::bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
+use leafwing_input_manager::prelude::*;
+use crate::ship::ShipPlugin;
 
 fn main() {
     App::new()
@@ -12,8 +16,9 @@ fn main() {
         .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(PhysicsPlugins::default())
         .add_plugins(PhysicsDebugPlugin)
+        .add_plugins(InputManagerPlugin::<Action>::default())
+        .add_plugins(ShipPlugin)
         .add_systems(Startup, scene.spawn())
-        .add_systems(Startup, ship::spawn_ship)
         .run();
 }
 

@@ -21,6 +21,7 @@ pub enum TelemetryField {
     AngleOfAttack,
     DynamicPressure,
     Rotation,
+    GForce,
 }
 
 pub fn setup_ui(mut commands: Commands) {
@@ -42,46 +43,52 @@ pub fn setup_ui(mut commands: Commands) {
                 TextColor(Color::WHITE)
             ),
             (
-                Text("Speed: 0.00 m/s")
+                Text()
                 TextFont { font_size: px(14.0) }
                 TextColor(Color::srgb(0.2, 1.0, 0.4))
                 TelemetryField::Speed
             ),
             (
-                Text("Thrust: 0.00 N")
+                Text()
                 TextFont { font_size: px(14.0) }
                 TextColor(Color::srgb(0.2, 1.0, 0.4))
                 TelemetryField::Thrust
             ),
             (
-                Text("Lift: 0.00 N")
+                Text()
                 TextFont { font_size: px(14.0) }
                 TextColor(Color::srgb(0.2, 1.0, 0.4))
                 TelemetryField::Lift
             ),
             (
-                Text("Drag: 0.00 N")
+                Text()
                 TextFont { font_size: px(14.0) }
                 TextColor(Color::srgb(0.2, 1.0, 0.4))
                 TelemetryField::Drag
             ),
             (
-                Text("AoA: 0.00 rad")
+                Text()
                 TextFont { font_size: px(14.0) }
                 TextColor(Color::srgb(0.2, 1.0, 0.4))
                 TelemetryField::AngleOfAttack
             ),
             (
-                Text("Dyn Press: 0.00 Pa")
+                Text()
                 TextFont { font_size: px(14.0) }
                 TextColor(Color::srgb(0.2, 1.0, 0.4))
                 TelemetryField::DynamicPressure
             ),
             (
-                Text("Rotation: 0.00 rad/s")
+                Text()
                 TextFont { font_size: px(14.0) }
                 TextColor(Color::srgb(0.2, 1.0, 0.4))
                 TelemetryField::Rotation
+            ),
+            (
+                Text()
+                TextFont { font_size: px(14.0) }
+                TextColor(Color::srgb(0.2, 1.0, 0.4))
+                TelemetryField::GForce
             ),
         ]
     });
@@ -120,6 +127,9 @@ pub fn update_ui(
             }
             TelemetryField::Rotation => {
                 format!("Rotation: {:.2} rad/s", telemetry.angular_velocity.length())
+            }
+            TelemetryField::GForce => {
+                format!("Gs: {:.2}G Y: ({:.2}G)", telemetry.g_force.length(), telemetry.g_force.y)
             }
         };
     }

@@ -47,12 +47,13 @@ pub struct FlightTelemetry {
     pub angle_of_attack: f32,
     pub slip_ratio: f32,
     pub dynamic_pressure: f32,
+    pub g_force: Vec3,
 }
 
 impl Default for FlightModel {
     fn default() -> Self {
         Self {
-            max_thrust: 16000.0,
+            max_thrust: 8000.0,
             wing_area: 4.0,
             lift_coefficient: 0.1,
             lift_slope: 3.5,
@@ -65,7 +66,7 @@ impl Default for FlightModel {
             aileron_wing_position: 1.0,
             elevator_authority: 0.01,
             rudder_authority: 0.04,
-            aileron_authority: 0.03,
+            aileron_authority: 0.02,
             angular_damping: Vec3::new(1.5, 1.5, 1.5),
         }
     }
@@ -81,6 +82,7 @@ pub fn apply_flight_forces(
     mut query: Query<(
         Forces,
         Mut<FlightTelemetry>,
+        &Mass,
         &Transform,
         &Throttle,
         &FlightModel,
@@ -89,7 +91,7 @@ pub fn apply_flight_forces(
 ) {
     let air_density = 1.225;
 
-    for (mut forces, mut telemetry, transform, throttle, flight_model, action_state) in
+    for (mut forces, mut telemetry, mass, transform, throttle, flight_model, action_state) in
         query.iter_mut()
     {
         let up = *transform.up();
@@ -198,6 +200,17 @@ pub fn apply_flight_forces(
             let world_damping = rotation * local_damping;
             forces.apply_angular_acceleration(world_damping);
 
+            let total_force = thrust_force
+                + drag_force
+                + lift_force
+                + side_drag_force
+                + elevator_force
+                + rudder_force;
+
+            let body_mass = mass.0;
+            let world_accel = total_force / body_mass;
+            let g_force = (rotation.inverse() * world_accel) / 9.80665;
+
             *telemetry = FlightTelemetry {
                 linear_velocity: velocity,
                 angular_velocity: local_angular_velocity,
@@ -207,6 +220,7 @@ pub fn apply_flight_forces(
                 angle_of_attack,
                 slip_ratio,
                 dynamic_pressure,
+                g_force,
             }
         }
     }

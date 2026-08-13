@@ -20,6 +20,7 @@ pub enum TelemetryField {
     Drag,
     AngleOfAttack,
     DynamicPressure,
+    Rotation,
 }
 
 pub fn setup_ui(mut commands: Commands) {
@@ -76,6 +77,12 @@ pub fn setup_ui(mut commands: Commands) {
                 TextColor(Color::srgb(0.2, 1.0, 0.4))
                 TelemetryField::DynamicPressure
             ),
+            (
+                Text("Rotation: 0.00 rad/s")
+                TextFont { font_size: px(14.0) }
+                TextColor(Color::srgb(0.2, 1.0, 0.4))
+                TelemetryField::Rotation
+            ),
         ]
     });
 }
@@ -92,7 +99,7 @@ pub fn update_ui(
     for (mut text, field) in &mut text_query {
         text.0 = match field {
             TelemetryField::Speed => {
-                format!("Speed: {:.2} m/s", telemetry.velocity.length())
+                format!("Speed: {:.2} m/s", telemetry.linear_velocity.length())
             }
             TelemetryField::Thrust => {
                 format!("Thrust: {:.2} N", telemetry.thrust.length())
@@ -110,6 +117,9 @@ pub fn update_ui(
             ),
             TelemetryField::DynamicPressure => {
                 format!("Dyn Press: {:.2} Pa", telemetry.dynamic_pressure)
+            }
+            TelemetryField::Rotation => {
+                format!("Rotation: {:.2} rad/s", telemetry.angular_velocity.length())
             }
         };
     }

@@ -39,7 +39,8 @@ pub struct FlightModel {
 
 #[derive(Component, Reflect, Default)]
 pub struct FlightTelemetry {
-    pub velocity: Vec3,
+    pub linear_velocity: Vec3,
+    pub angular_velocity: Vec3,
     pub thrust: Vec3,
     pub drag: Vec3,
     pub lift: Vec3,
@@ -51,22 +52,21 @@ pub struct FlightTelemetry {
 impl Default for FlightModel {
     fn default() -> Self {
         Self {
-            max_thrust: 35000.0,
-            wing_area: 12.0,
+            max_thrust: 16000.0,
+            wing_area: 4.0,
             lift_coefficient: 0.1,
-            lift_slope: 5.7,
-            drag_coefficient: 0.05,
-            induced_drag_coeff: 0.2,
+            lift_slope: 3.5,
+            drag_coefficient: 0.04,
+            induced_drag_coeff: 0.25,
             center_of_lift_offset: Vec3::ZERO,
             center_of_thrust_offset: Vec3::new(0.0, 0.0, 1.5),
-            // 1.2m behind CoM
             tail_offset: Vec3::new(0.0, 0.0, 1.2),
-            tail_fin_area: 0.5,
+            tail_fin_area: 0.6,
             aileron_wing_position: 1.0,
             elevator_authority: 0.01,
-            rudder_authority: 0.05,
-            aileron_authority: 0.01,
-            angular_damping: Vec3::new(1.2, 8.0, 2.0),
+            rudder_authority: 0.04,
+            aileron_authority: 0.03,
+            angular_damping: Vec3::new(1.5, 1.5, 1.5),
         }
     }
 }
@@ -117,23 +117,21 @@ pub fn apply_flight_forces(
             let vel_dir = velocity / speed;
             let dynamic_pressure = calculate_dynamic_pressure(air_density, speed);
 
-            let alignment = forward.dot(vel_dir).abs();
+            let local_vel = rotation.inverse() * vel_dir;
+            // Cap angle of attack at ~25 degrees (0.43 rad) to simulate wing stall
+            let angle_of_attack = (-local_vel.y).atan2(-local_vel.z).clamp(-0.43, 0.43);
+
+            let effective_cl =
+                flight_model.lift_coefficient + (angle_of_attack * flight_model.lift_slope);
 
             // Drag
-            let total_drag_coeff =
-                flight_model.drag_coefficient + (1.0 - alignment) * flight_model.induced_drag_coeff;
+            let induced_drag = flight_model.induced_drag_coeff * effective_cl.powi(2);
+            let total_drag_coeff = flight_model.drag_coefficient + induced_drag;
             let drag_magnitude = dynamic_pressure * flight_model.wing_area * total_drag_coeff;
             let drag_force = -vel_dir * drag_magnitude;
             forces.apply_force(drag_force);
 
-            // Lift
             let lift_dir = (up - vel_dir * up.dot(vel_dir)).normalize_or_zero();
-            let local_vel = rotation.inverse() * vel_dir;
-            // Cap angle of attack at ~25 degrees (0.43 rad) to simulate wing stall
-            let angle_of_attack = (-local_vel.y).atan2(-local_vel.z).clamp(-0.43, 0.43);
-            let effective_cl =
-                flight_model.lift_coefficient + (angle_of_attack * flight_model.lift_slope);
-
             let lift_magnitude = dynamic_pressure * flight_model.wing_area * effective_cl;
             let lift_force = lift_dir * lift_magnitude;
             apply_force_at_offset(
@@ -147,7 +145,7 @@ pub fn apply_flight_forces(
             // Combined linear side speed + rotational speed of the tail fin (omega * radius)
             let tail_rotational_side_speed = local_angular_velocity.y * flight_model.tail_offset.z;
             let total_tail_side_speed = velocity.dot(right) + tail_rotational_side_speed;
-            let slip_ratio = total_tail_side_speed / speed;
+            let slip_ratio = (total_tail_side_speed / speed).clamp(-1.0, 1.0);
 
             let side_drag_force =
                 -right * (dynamic_pressure * flight_model.tail_fin_area * slip_ratio);
@@ -201,7 +199,8 @@ pub fn apply_flight_forces(
             forces.apply_angular_acceleration(world_damping);
 
             *telemetry = FlightTelemetry {
-                velocity,
+                linear_velocity: velocity,
+                angular_velocity: local_angular_velocity,
                 thrust: thrust_force,
                 drag: drag_force,
                 lift: lift_force,

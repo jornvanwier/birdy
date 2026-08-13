@@ -4,23 +4,36 @@ mod ui;
 
 use crate::input::Action;
 use crate::ship::{FlightModel, ShipPlugin};
+use crate::ui::HudPlugin;
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use bevy_embedded_assets::{EmbeddedAssetPlugin, PluginMode};
 use bevy_inspector_egui::bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use leafwing_input_manager::prelude::*;
-use crate::ui::HudPlugin;
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
-        .add_plugins(EguiPlugin::default())
-        .add_plugins(WorldInspectorPlugin::new())
-        .add_plugins(PhysicsPlugins::default())
-        .add_plugins(PhysicsDebugPlugin)
-        .add_plugins(InputManagerPlugin::<Action>::default())
-        .add_plugins(ShipPlugin)
-        .add_plugins(HudPlugin)
+        .add_plugins((
+            EmbeddedAssetPlugin { mode: PluginMode::ReplaceDefault },
+            DefaultPlugins.set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "Birdy Flight Sim".into(),
+                    canvas: Some("#bevy".into()),
+                    fit_canvas_to_parent: true,
+                    prevent_default_event_handling: true,
+                    ..default()
+                }),
+                ..default()
+            }),
+            EguiPlugin::default(),
+            WorldInspectorPlugin::new(),
+            PhysicsPlugins::default(),
+            PhysicsDebugPlugin,
+            InputManagerPlugin::<Action>::default(),
+            ShipPlugin,
+            HudPlugin,
+        ))
         .add_systems(Startup, scene.spawn())
         .add_systems(Update, draw_flight_vectors)
         .run();

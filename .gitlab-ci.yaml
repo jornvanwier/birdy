@@ -1,0 +1,18 @@
+image: rust:latest
+
+pages:
+  stage: deploy
+  before_script:
+    # Add WASM build target
+    - rustup target add wasm32-unknown-unknown
+    # Download prebuilt Trunk binary (much faster than cargo install)
+    - curl -sL https://github.com/trunk-rs/trunk/releases/download/v0.21.5/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf - -C /usr/local/bin
+  script:
+    # Build WASM executable and bundle assets into public/ directory.
+    # --public-url "./" ensures relative paths work with GitLab Pages subdirectories.
+    - trunk build --release --public-url "./" -d public
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

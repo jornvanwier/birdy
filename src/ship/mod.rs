@@ -6,7 +6,7 @@ use bevy::prelude::*;
 mod flight;
 mod throttle;
 
-pub use flight::FlightModel;
+pub use flight::{FlightModel, FlightTelemetry};
 
 pub struct ShipPlugin;
 
@@ -35,6 +35,7 @@ pub fn spawn_ship(mut commands: Commands, asset_server: Res<AssetServer>) {
             Name::new("Player"),
             Ship,
             FlightModel::default(),
+            FlightTelemetry::default(),
             Throttle::new(0., 0.5, 5.0),
             Transform::from_xyz(0., 0., 10.),
             RigidBody::Dynamic,

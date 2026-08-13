@@ -1,5 +1,6 @@
 mod input;
 pub mod ship;
+mod ui;
 
 use crate::input::Action;
 use crate::ship::{FlightModel, ShipPlugin};
@@ -8,6 +9,7 @@ use bevy::prelude::*;
 use bevy_inspector_egui::bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use leafwing_input_manager::prelude::*;
+use crate::ui::HudPlugin;
 
 fn main() {
     App::new()
@@ -18,12 +20,16 @@ fn main() {
         .add_plugins(PhysicsDebugPlugin)
         .add_plugins(InputManagerPlugin::<Action>::default())
         .add_plugins(ShipPlugin)
+        .add_plugins(HudPlugin)
         .add_systems(Startup, scene.spawn())
         .add_systems(Update, draw_flight_vectors)
         .run();
 }
 
-fn draw_flight_vectors(mut gizmos: Gizmos, query: Query<(&Transform, &LinearVelocity), With<FlightModel>>) {
+fn draw_flight_vectors(
+    mut gizmos: Gizmos,
+    query: Query<(&Transform, &LinearVelocity), With<FlightModel>>,
+) {
     let scale = 0.5; // Adjust visual length of vectors
 
     for (transform, linear_velocity) in &query {

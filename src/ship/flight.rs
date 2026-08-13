@@ -1,9 +1,9 @@
-use avian3d::prelude::*;
-use avian3d::prelude::forces::ForcesItem;
-use bevy::prelude::*;
-use leafwing_input_manager::action_state::ActionState;
 use crate::input::Action;
 use crate::ship::throttle::Throttle;
+use avian3d::prelude::forces::ForcesItem;
+use avian3d::prelude::*;
+use bevy::prelude::*;
+use leafwing_input_manager::action_state::ActionState;
 
 #[derive(Component, Reflect)]
 #[reflect(Component)]
@@ -35,6 +35,17 @@ pub struct FlightModel {
 
     /// Rotational damping factors in local space (prevents endless spin/oscillations)
     pub angular_damping: Vec3,
+}
+
+#[derive(Component, Reflect, Default)]
+pub struct FlightTelemetry {
+    pub velocity: Vec3,
+    pub thrust: Vec3,
+    pub drag: Vec3,
+    pub lift: Vec3,
+    pub angle_of_attack: f32,
+    pub slip_ratio: f32,
+    pub dynamic_pressure: f32,
 }
 
 impl Default for FlightModel {
@@ -69,6 +80,7 @@ fn apply_force_at_offset(forces: &mut ForcesItem, force: Vec3, local_offset: Vec
 pub fn apply_flight_forces(
     mut query: Query<(
         Forces,
+        Mut<FlightTelemetry>,
         &Transform,
         &Throttle,
         &FlightModel,
@@ -77,7 +89,9 @@ pub fn apply_flight_forces(
 ) {
     let air_density = 1.225;
 
-    for (mut forces, transform, throttle, flight_model, action_state) in query.iter_mut() {
+    for (mut forces, mut telemetry, transform, throttle, flight_model, action_state) in
+        query.iter_mut()
+    {
         let up = *transform.up();
         let right = *transform.right();
         let forward = *transform.forward();
@@ -128,10 +142,6 @@ pub fn apply_flight_forces(
                 flight_model.center_of_lift_offset,
                 rotation,
             );
-
-            // let side_speed = velocity.dot(right);
-            // let slip_ratio = side_speed / speed;
-            // Tail fin side drag (dynamic weathercocking + aerodynamic yaw damping)
 
             // Tail fin side drag (dynamic weathercocking)
             // Combined linear side speed + rotational speed of the tail fin (omega * radius)
@@ -189,6 +199,16 @@ pub fn apply_flight_forces(
             let local_damping = -local_angular_velocity * flight_model.angular_damping;
             let world_damping = rotation * local_damping;
             forces.apply_angular_acceleration(world_damping);
+
+            *telemetry = FlightTelemetry {
+                velocity,
+                thrust: thrust_force,
+                drag: drag_force,
+                lift: lift_force,
+                angle_of_attack,
+                slip_ratio,
+                dynamic_pressure,
+            }
         }
     }
 }

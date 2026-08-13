@@ -53,21 +53,21 @@ pub struct FlightTelemetry {
 impl Default for FlightModel {
     fn default() -> Self {
         Self {
-            max_thrust: 8000.0,
-            wing_area: 4.0,
-            lift_coefficient: 0.1,
+            max_thrust: 140_000.0,
+            wing_area: 32.0,
+            lift_coefficient: 0.02,
             lift_slope: 3.5,
-            drag_coefficient: 0.04,
-            induced_drag_coeff: 0.25,
-            center_of_lift_offset: Vec3::ZERO,
-            center_of_thrust_offset: Vec3::new(0.0, 0.0, 1.5),
-            tail_offset: Vec3::new(0.0, 0.0, 1.2),
-            tail_fin_area: 0.6,
-            aileron_wing_position: 1.0,
-            elevator_authority: 0.01,
-            rudder_authority: 0.04,
-            aileron_authority: 0.02,
-            angular_damping: Vec3::new(1.5, 1.5, 1.5),
+            drag_coefficient: 0.02,
+            induced_drag_coeff: 0.18,
+            center_of_lift_offset: Vec3::new(0.0, 0.0, 0.35),
+            center_of_thrust_offset: Vec3::new(0.0, 0.0, 5.),
+            tail_offset: Vec3::new(0.0, 0.8, 5.5),
+            tail_fin_area: 5.0,
+            aileron_wing_position: 4.0,
+            elevator_authority: 1.5,
+            rudder_authority: 1.5,
+            aileron_authority: 1.2,
+            angular_damping: Vec3::new(2.0, 2.5, 4.0),
         }
     }
 }
@@ -115,115 +115,121 @@ pub fn apply_flight_forces(
             rotation,
         );
 
-        if speed > 0.01 {
-            let vel_dir = velocity / speed;
-            let dynamic_pressure = calculate_dynamic_pressure(air_density, speed);
+        // if speed > 0.01 {
+        let vel_dir = if speed > 0.01 {
+            velocity / speed
+        } else {
+            Vec3::Y
+        };
+        let dynamic_pressure = calculate_dynamic_pressure(air_density, speed);
 
-            let local_vel = rotation.inverse() * vel_dir;
-            // Cap angle of attack at ~25 degrees (0.43 rad) to simulate wing stall
-            let angle_of_attack = (-local_vel.y).atan2(-local_vel.z).clamp(-0.43, 0.43);
+        let local_vel = rotation.inverse() * vel_dir;
+        // Cap angle of attack at ~25 degrees (0.43 rad) to simulate wing stall
+        let angle_of_attack = (-local_vel.y).atan2(-local_vel.z).clamp(-0.43, 0.43);
 
-            let effective_cl =
-                flight_model.lift_coefficient + (angle_of_attack * flight_model.lift_slope);
+        let effective_cl =
+            flight_model.lift_coefficient + (angle_of_attack * flight_model.lift_slope);
 
-            // Drag
-            let induced_drag = flight_model.induced_drag_coeff * effective_cl.powi(2);
-            let total_drag_coeff = flight_model.drag_coefficient + induced_drag;
-            let drag_magnitude = dynamic_pressure * flight_model.wing_area * total_drag_coeff;
-            let drag_force = -vel_dir * drag_magnitude;
-            forces.apply_force(drag_force);
+        // Drag
+        let induced_drag = flight_model.induced_drag_coeff * effective_cl.powi(2);
+        let total_drag_coeff = flight_model.drag_coefficient + induced_drag;
+        let drag_magnitude = dynamic_pressure * flight_model.wing_area * total_drag_coeff;
+        let drag_force = -vel_dir * drag_magnitude;
+        forces.apply_force(drag_force);
 
-            let lift_dir = (up - vel_dir * up.dot(vel_dir)).normalize_or_zero();
-            let lift_magnitude = dynamic_pressure * flight_model.wing_area * effective_cl;
-            let lift_force = lift_dir * lift_magnitude;
-            apply_force_at_offset(
-                &mut forces,
-                lift_force,
-                flight_model.center_of_lift_offset,
-                rotation,
-            );
+        let lift_dir = (up - vel_dir * up.dot(vel_dir)).normalize_or_zero();
+        let lift_magnitude = dynamic_pressure * flight_model.wing_area * effective_cl;
+        let lift_force = lift_dir * lift_magnitude;
+        apply_force_at_offset(
+            &mut forces,
+            lift_force,
+            flight_model.center_of_lift_offset,
+            rotation,
+        );
 
-            // Tail fin side drag (dynamic weathercocking)
-            // Combined linear side speed + rotational speed of the tail fin (omega * radius)
-            let tail_rotational_side_speed = local_angular_velocity.y * flight_model.tail_offset.z;
-            let total_tail_side_speed = velocity.dot(right) + tail_rotational_side_speed;
-            let slip_ratio = (total_tail_side_speed / speed).clamp(-1.0, 1.0);
+        // Tail fin side drag (dynamic weathercocking)
+        // Combined linear side speed + rotational speed of the tail fin (omega * radius)
+        let tail_rotational_side_speed = local_angular_velocity.y * flight_model.tail_offset.z;
+        let total_tail_side_speed = velocity.dot(right) + tail_rotational_side_speed;
+        let slip_ratio = (if speed > 0.01 {
+            total_tail_side_speed / speed
+        } else {
+            0.0
+        })
+        .clamp(-1.0, 1.0);
 
-            let side_drag_force =
-                -right * (dynamic_pressure * flight_model.tail_fin_area * slip_ratio);
-            apply_force_at_offset(
-                &mut forces,
-                side_drag_force,
-                flight_model.tail_offset,
-                rotation,
-            );
+        let side_drag_force = -right * (dynamic_pressure * flight_model.tail_fin_area * slip_ratio);
+        apply_force_at_offset(
+            &mut forces,
+            side_drag_force,
+            flight_model.tail_offset,
+            rotation,
+        );
 
-            // Input handling
-            // TODO trim
-            let Vec2 {
-                x: roll_input,
-                y: pitch_input,
-            } = action_state.clamped_axis_pair(&Action::RollPitch);
-            let yaw_input = action_state.value(&Action::Yaw);
+        // Input handling
+        // TODO trim
+        let Vec2 {
+            x: roll_input,
+            y: pitch_input,
+        } = action_state.clamped_axis_pair(&Action::RollPitch);
+        let yaw_input = action_state.value(&Action::Yaw);
 
-            // Elevator
-            let elevator_force =
-                up * (pitch_input * flight_model.elevator_authority * dynamic_pressure);
-            apply_force_at_offset(
-                &mut forces,
-                elevator_force,
-                flight_model.tail_offset,
-                rotation,
-            );
+        // Elevator
+        let elevator_force =
+            up * (pitch_input * flight_model.elevator_authority * dynamic_pressure);
+        apply_force_at_offset(
+            &mut forces,
+            elevator_force,
+            flight_model.tail_offset,
+            rotation,
+        );
 
-            // Rudder
-            let rudder_force =
-                right * (-yaw_input * flight_model.rudder_authority * dynamic_pressure);
-            apply_force_at_offset(
-                &mut forces,
-                rudder_force,
-                flight_model.tail_offset,
-                rotation,
-            );
+        // Rudder
+        let rudder_force = right * (-yaw_input * flight_model.rudder_authority * dynamic_pressure);
+        apply_force_at_offset(
+            &mut forces,
+            rudder_force,
+            flight_model.tail_offset,
+            rotation,
+        );
 
-            // Aileron Differential
-            let left_wing_offset = Vec3::new(-flight_model.aileron_wing_position, 0.0, 0.0);
-            let right_wing_offset = -left_wing_offset;
+        // Aileron Differential
+        let left_wing_offset = Vec3::new(-flight_model.aileron_wing_position, 0.0, 0.0);
+        let right_wing_offset = -left_wing_offset;
 
-            let aileron_force =
-                up * (roll_input * flight_model.aileron_authority * dynamic_pressure);
-            apply_force_at_offset(&mut forces, aileron_force, left_wing_offset, rotation);
-            apply_force_at_offset(&mut forces, -aileron_force, right_wing_offset, rotation);
+        let aileron_force = up * (roll_input * flight_model.aileron_authority * dynamic_pressure);
+        apply_force_at_offset(&mut forces, aileron_force, left_wing_offset, rotation);
+        apply_force_at_offset(&mut forces, -aileron_force, right_wing_offset, rotation);
 
-            // Angular Damping (Prevents harmonic spring bobbing)
-            let local_damping = -local_angular_velocity * flight_model.angular_damping;
-            let world_damping = rotation * local_damping;
-            forces.apply_angular_acceleration(world_damping);
+        // Angular Damping (Prevents harmonic spring bobbing)
+        let local_damping = -local_angular_velocity * flight_model.angular_damping;
+        let world_damping = rotation * local_damping;
+        forces.apply_angular_acceleration(world_damping);
 
-            let total_force = thrust_force
-                + drag_force
-                + lift_force
-                + side_drag_force
-                + elevator_force
-                + rudder_force;
+        let total_force = thrust_force
+            + drag_force
+            + lift_force
+            + side_drag_force
+            + elevator_force
+            + rudder_force;
 
-            let body_mass = mass.0;
-            let world_accel = total_force / body_mass;
-            let g_force = (rotation.inverse() * world_accel) / 9.80665;
+        let body_mass = mass.0;
+        let world_accel = total_force / body_mass;
+        let g_force = (rotation.inverse() * world_accel) / 9.80665;
 
-            *telemetry = FlightTelemetry {
-                linear_velocity: velocity,
-                angular_velocity: local_angular_velocity,
-                thrust: thrust_force,
-                drag: drag_force,
-                lift: lift_force,
-                angle_of_attack,
-                slip_ratio,
-                dynamic_pressure,
-                g_force,
-            }
+        *telemetry = FlightTelemetry {
+            linear_velocity: velocity,
+            angular_velocity: local_angular_velocity,
+            thrust: thrust_force,
+            drag: drag_force,
+            lift: lift_force,
+            angle_of_attack,
+            slip_ratio,
+            dynamic_pressure,
+            g_force,
         }
     }
+    // }
 }
 
 fn calculate_dynamic_pressure(air_density: f32, speed: f32) -> f32 {

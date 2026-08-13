@@ -19,24 +19,8 @@ fn main() {
         .add_plugins(InputManagerPlugin::<Action>::default())
         .add_plugins(ShipPlugin)
         .add_systems(Startup, scene.spawn())
-        // .add_systems(Update, draw_linear_velocity_debug)
         .add_systems(Update, draw_flight_vectors)
         .run();
-}
-
-fn draw_linear_velocity_debug(mut gizmos: Gizmos, query: Query<(&Transform, &LinearVelocity)>) {
-    // Scaling factor to prevent arrows from being too long or short on screen
-    let velocity_scale = 0.5;
-
-    for (transform, linear_velocity) in &query {
-        // LinearVelocity wraps a Vec3 (accessed via .0)
-        if linear_velocity.length_squared() > 0.001 {
-            let start = transform.translation;
-            let end = start + (linear_velocity.0 * velocity_scale);
-
-            gizmos.arrow(start, end, Color::srgb(1.0, 0.2, 0.2));
-        }
-    }
 }
 
 fn draw_flight_vectors(mut gizmos: Gizmos, query: Query<(&Transform, &LinearVelocity), With<FlightModel>>) {
@@ -119,10 +103,10 @@ fn scene() -> impl SceneList {
             LinearDamping(0.5)
         ),
         (
-            PointLight {
-                shadow_maps_enabled: true,
-            }
-            Transform::from_xyz(4.0, 8.0, 4.0)
+            DirectionalLight {
+                 shadow_maps_enabled: true,
+             }
+            template_value(Transform::from_xyz(4000.0, 8000.0, 4000.0).looking_at(Vec3::ZERO, Vec3::Y))
         )
     ]
 }

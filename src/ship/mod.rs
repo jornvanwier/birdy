@@ -37,7 +37,7 @@ pub fn spawn_ship(mut commands: Commands, asset_server: Res<AssetServer>) {
             FlightModel::default(),
             FlightTelemetry::default(),
             Throttle::new(0., 0.5, 5.0),
-            Transform::from_xyz(0., 0., 10.),
+            Transform::from_xyz(0., 10., 10.),
             RigidBody::Dynamic,
             Collider::cuboid(2.0, 0.75, 1.5),
             Mass(800.0),

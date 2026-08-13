@@ -3,6 +3,7 @@ image: rust:latest
 pages:
   stage: deploy
   before_script:
+    - apt-get update && apt-get install -y clang mold
     # Add WASM build target
     - rustup target add wasm32-unknown-unknown
     # Download prebuilt Trunk binary (much faster than cargo install)

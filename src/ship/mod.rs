@@ -65,7 +65,7 @@ fn camera_chase_ship(
     ship_transform: Single<&Transform, (With<Ship>, Without<Camera3d>)>,
     time: Res<Time>,
 ) {
-    const CAMERA_OFFSET: Vec3 = Vec3::new(0.0, 3.0, 10.0);
+    const CAMERA_OFFSET: Vec3 = Vec3::new(0.0, 3.0, 20.0);
     const BASE_STIFFNESS: f32 = 5.0;
 
     let target_position = ship_transform.transform_point(CAMERA_OFFSET);
@@ -74,7 +74,7 @@ fn camera_chase_ship(
 
     let true_offset_distance = camera_transform.translation.distance(target_position);
     let translation_stiffness =
-        BASE_STIFFNESS * (1.0 + (0.3 * true_offset_distance / CAMERA_OFFSET.length()).exp());
+        BASE_STIFFNESS * (1.0 + (5.0 * true_offset_distance / CAMERA_OFFSET.length()).exp());
 
     let delta_time = time.delta_secs();
 

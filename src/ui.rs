@@ -1,6 +1,7 @@
-use crate::ship::FlightTelemetry;
-use bevy::prelude::*;
 use crate::build_info;
+use crate::ship::FlightTelemetry;
+use bevy::camera::visibility::RenderLayers;
+use bevy::prelude::*;
 
 pub struct HudPlugin;
 
@@ -26,7 +27,7 @@ pub enum TelemetryField {
 }
 
 fn spawn_camera(mut commands: Commands) {
-    commands.spawn(Camera2d);
+    commands.spawn((Camera2d, RenderLayers::layer(1)));
 }
 
 pub fn setup_version(mut commands: Commands) {

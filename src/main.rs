@@ -6,6 +6,7 @@ use crate::input::Action;
 use crate::ship::{FlightModel, ShipPlugin};
 use crate::ui::HudPlugin;
 use avian3d::prelude::*;
+use bevy::input::common_conditions::input_toggle_active;
 use bevy::prelude::*;
 use bevy_embedded_assets::{EmbeddedAssetPlugin, PluginMode};
 use bevy_inspector_egui::bevy_egui::EguiPlugin;
@@ -16,10 +17,11 @@ use shadow_rs::shadow;
 shadow!(build_info);
 
 fn main() {
-
     App::new()
         .add_plugins((
-            EmbeddedAssetPlugin { mode: PluginMode::ReplaceDefault },
+            EmbeddedAssetPlugin {
+                mode: PluginMode::ReplaceDefault,
+            },
             DefaultPlugins.set(WindowPlugin {
                 primary_window: Some(Window {
                     title: "Birdy Flight Sim".into(),
@@ -31,7 +33,7 @@ fn main() {
                 ..default()
             }),
             EguiPlugin::default(),
-            WorldInspectorPlugin::new(),
+            WorldInspectorPlugin::new().run_if(input_toggle_active(false, KeyCode::F12)),
             PhysicsPlugins::default(),
             PhysicsDebugPlugin,
             InputManagerPlugin::<Action>::default(),

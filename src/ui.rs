@@ -29,10 +29,6 @@ pub enum TelemetryField {
 fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         Camera2d,
-        Camera {
-            order: 1,
-            ..default()
-        },
         RenderLayers::layer(1),
     ));
 }

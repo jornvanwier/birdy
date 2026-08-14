@@ -57,6 +57,9 @@ pub fn spawn_ship(mut commands: Commands, asset_server: Res<AssetServer>) {
 fn spawn_camera(mut commands: Commands) {
     commands.spawn_scene(bsn! {
        Camera3d::default()
+        Camera {
+            order: 1,
+        }
         TransformInterpolation
     });
 }

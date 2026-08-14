@@ -33,6 +33,7 @@ pub fn spawn_ship(mut commands: Commands, asset_server: Res<AssetServer>) {
         .insert((
             Name::new("Player"),
             Ship,
+            Visibility::default(),
             FlightModel::default(),
             FlightTelemetry::default(),
             LinearVelocity(Vec3::NEG_Z * 300.),

@@ -12,13 +12,9 @@ pub struct ShipPlugin;
 
 impl Plugin for ShipPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_ship).add_systems(
-            Update,
-            (
-                throttle::handle_throttle.before(flight::apply_flight_forces),
-                flight::apply_flight_forces,
-            ),
-        );
+        app.add_systems(Startup, spawn_ship)
+            .add_systems(Update, throttle::handle_throttle)
+            .add_systems(FixedUpdate, flight::apply_flight_forces);
     }
 }
 

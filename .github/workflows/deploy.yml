@@ -2,7 +2,7 @@ name: Deploy Bevy to Pages
 
 on:
   push:
-    branches: ["main"] # Change this to your default branch name
+    branches: ["dev"] # Change this to your default branch name
   workflow_dispatch:
 
 # Permissions needed to deploy to GitHub Pages

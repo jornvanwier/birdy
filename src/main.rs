@@ -101,7 +101,7 @@ fn scene() -> impl SceneList {
         (
             #Planet
             Mesh3d(asset_value(Sphere::new(planet_radius)))
-            MeshMaterial3d::<StandardMaterial>(asset_value(Color::srgb(0.1, 0.1, 0.8)))
+            MeshMaterial3d<StandardMaterial>(asset_value(Color::srgb(0.1, 0.1, 0.8)))
             Transform {
                 translation: Vec3::new(500., planet_radius + 1000., 500.),
                 rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
@@ -112,14 +112,14 @@ fn scene() -> impl SceneList {
         (
             #Ground
             Mesh3d(asset_value(Plane3d::new(Vec3::Y, Vec2::new(10_000., 10_000.))))
-            MeshMaterial3d::<StandardMaterial>(asset_value(Color::srgb(0., 0.9, 0.1)))
+            MeshMaterial3d<StandardMaterial>(asset_value(Color::srgb(0.1, 0.4, 0.2)))
             Transform::from_translation(Vec3::ZERO)
             template_value(RigidBody::Static)
             Collider::half_space(Vec3::Y)
         ),
         (
             Mesh3d(asset_value(Cuboid::new(1.0, 1.0, 1.0)))
-            MeshMaterial3d::<StandardMaterial>(asset_value(Color::srgb_u8(124, 144, 255)))
+            MeshMaterial3d<StandardMaterial>(asset_value(Color::srgb_u8(124, 144, 255)))
             Transform::from_xyz(-1.0, 10.0, 0.0)
             template_value(RigidBody::Dynamic)
             Collider::cuboid(1.0, 1.0, 1.0)
@@ -128,7 +128,7 @@ fn scene() -> impl SceneList {
         ),
         (
             Mesh3d(asset_value(Cuboid::new(1.0, 1.0, 1.0)))
-            MeshMaterial3d::<StandardMaterial>(asset_value(Color::srgb_u8(30, 144, 255)))
+            MeshMaterial3d<StandardMaterial>(asset_value(Color::srgb_u8(30, 144, 255)))
             Transform::from_xyz(1.0, 10.0, 0.0)
             template_value(RigidBody::Dynamic)
             Collider::cuboid(1.0, 1.0, 1.0)

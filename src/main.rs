@@ -1,16 +1,15 @@
+mod debug;
 mod input;
 pub mod ship;
 mod ui;
 
 use crate::input::Action;
-use crate::ship::{FlightModel, ShipPlugin};
+use crate::ship::ShipPlugin;
 use crate::ui::HudPlugin;
 use avian3d::prelude::*;
-use bevy::input::common_conditions::input_toggle_active;
 use bevy::prelude::*;
 use bevy_embedded_assets::{EmbeddedAssetPlugin, PluginMode};
 use bevy_inspector_egui::bevy_egui::EguiPlugin;
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use leafwing_input_manager::prelude::*;
 use shadow_rs::shadow;
 
@@ -33,65 +32,14 @@ fn main() {
                 ..default()
             }),
             EguiPlugin::default(),
-            WorldInspectorPlugin::new().run_if(input_toggle_active(false, KeyCode::F12)),
             PhysicsPlugins::default(),
-            PhysicsDebugPlugin,
             InputManagerPlugin::<Action>::default(),
             ShipPlugin,
             HudPlugin,
+            debug::DebugPlugin,
         ))
         .add_systems(Startup, scene.spawn())
-        .add_systems(Update, draw_flight_vectors)
         .run();
-}
-
-fn draw_flight_vectors(
-    mut gizmos: Gizmos,
-    query: Query<(&Transform, &LinearVelocity), With<FlightModel>>,
-) {
-    let scale = 0.5; // Adjust visual length of vectors
-
-    for (transform, linear_velocity) in &query {
-        let position = transform.translation;
-        let actual_vel = linear_velocity.0; // Total velocity (Vec3)
-
-        // Skip if not moving
-        if actual_vel.length_squared() < 0.001 {
-            continue;
-        }
-
-        // 1. Get the direction the aircraft nose is pointing
-        let forward_dir = *transform.forward(); // Vec3
-
-        // 2. Calculate speed along the aircraft's longitudinal axis
-        // (Dot product projects actual velocity onto the forward direction)
-        let forward_speed = actual_vel.dot(forward_dir);
-        let forward_vel = forward_dir * forward_speed;
-
-        // --- DRAW GIZMOS ---
-
-        // A. Actual Trajectory / Velocity Vector (Green)
-        gizmos.arrow(
-            position,
-            position + (actual_vel * scale),
-            Color::srgb(0.0, 1.0, 0.0),
-        );
-
-        // B. Forward Velocity / Nose Vector (Yellow - Ignores Lift & Gravity)
-        gizmos.arrow(
-            position,
-            position + (forward_vel * scale),
-            Color::srgb(1.0, 1.0, 0.0),
-        );
-
-        // C. Lift / Gravity Delta Vector (Red - Shows where forces pull the plane)
-        // Drawn from the tip of the Yellow vector to the tip of the Green vector
-        gizmos.arrow(
-            position + (forward_vel * scale),
-            position + (actual_vel * scale),
-            Color::srgb(1.0, 0.0, 0.0),
-        );
-    }
 }
 
 /// set up a simple 3D scene

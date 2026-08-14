@@ -21,4 +21,5 @@ opt-level = 3
 [profile.release]
 strip = true
 # Allows full cross-module optimizations
-lto = true
+lto = "thin"
+opt-level = "s"

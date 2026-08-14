@@ -229,7 +229,6 @@ pub fn apply_flight_forces(
             g_force,
         }
     }
-    // }
 }
 
 fn calculate_dynamic_pressure(air_density: f32, speed: f32) -> f32 {

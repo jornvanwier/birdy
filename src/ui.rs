@@ -1,12 +1,13 @@
 use crate::ship::FlightTelemetry;
 use bevy::prelude::*;
+use crate::build_info;
 
 pub struct HudPlugin;
 
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup_ui)
-            .add_systems(Update, update_ui);
+        app.add_systems(Startup, (spawn_camera, setup_telemetry, setup_version))
+            .add_systems(Update, update_telemetry);
     }
 }
 
@@ -24,9 +25,37 @@ pub enum TelemetryField {
     GForce,
 }
 
-pub fn setup_ui(mut commands: Commands) {
+fn spawn_camera(mut commands: Commands) {
+    commands.spawn(Camera2d);
+}
+
+pub fn setup_version(mut commands: Commands) {
     commands.spawn_scene(bsn! {
-        Camera2d
+        Node {
+            position_type: PositionType::Absolute,
+            bottom: px(3.0),
+            right: px(3.0),
+            flex_direction: FlexDirection::Column,
+            row_gap: px(4.0),
+            padding: UiRect::all(px(8.0)),
+        }
+        Children [
+            (
+                Text(format!("Commit: {}", build_info::SHORT_COMMIT))
+                TextFont { font_size: px(8.0) }
+                TextColor(Color::WHITE)
+            ),
+            (
+                Text(format!("Build time: {}", build_info::BUILD_TIME))
+                TextFont { font_size: px(8.0) }
+                TextColor(Color::WHITE)
+            ),
+        ]
+    });
+}
+
+pub fn setup_telemetry(mut commands: Commands) {
+    commands.spawn_scene(bsn! {
         Node {
             position_type: PositionType::Absolute,
             top: px(10.0),
@@ -94,7 +123,7 @@ pub fn setup_ui(mut commands: Commands) {
     });
 }
 
-pub fn update_ui(
+pub fn update_telemetry(
     telemetry_query: Query<&FlightTelemetry, Changed<FlightTelemetry>>,
     mut text_query: Query<(&mut Text, &TelemetryField)>,
 ) {
@@ -129,7 +158,11 @@ pub fn update_ui(
                 format!("Rotation: {:.2} rad/s", telemetry.angular_velocity.length())
             }
             TelemetryField::GForce => {
-                format!("Gs: {:.2}G Y: ({:.2}G)", telemetry.g_force.length(), telemetry.g_force.y)
+                format!(
+                    "Gs: {:.2}G Y: ({:.2}G)",
+                    telemetry.g_force.length(),
+                    telemetry.g_force.y
+                )
             }
         };
     }

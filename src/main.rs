@@ -11,8 +11,12 @@ use bevy_embedded_assets::{EmbeddedAssetPlugin, PluginMode};
 use bevy_inspector_egui::bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use leafwing_input_manager::prelude::*;
+use shadow_rs::shadow;
+
+shadow!(build_info);
 
 fn main() {
+
     App::new()
         .add_plugins((
             EmbeddedAssetPlugin { mode: PluginMode::ReplaceDefault },

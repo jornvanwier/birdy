@@ -8,7 +8,7 @@ pub struct HudPlugin;
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, (spawn_camera, setup_telemetry, setup_version))
-            .add_systems(Update, update_telemetry);
+            .add_systems(Update, (update_telemetry,));
     }
 }
 
@@ -29,6 +29,13 @@ pub enum TelemetryField {
 fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         Camera2d,
+        Camera {
+            // Renders UI after main scene (0) and orb (1)
+            order: 10,
+            ..default()
+        },
+        // Directs all 2D UI nodes here
+        IsDefaultUiCamera,
         RenderLayers::layer(1),
     ));
 }
@@ -131,7 +138,6 @@ pub fn update_telemetry(
     telemetry_query: Query<&FlightTelemetry, Changed<FlightTelemetry>>,
     mut text_query: Query<(&mut Text, &TelemetryField)>,
 ) {
-    // Only run if telemetry updated this frame
     let Ok(telemetry) = telemetry_query.single() else {
         return;
     };

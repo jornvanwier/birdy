@@ -54,9 +54,13 @@ pub fn spawn_ship(mut commands: Commands, asset_server: Res<AssetServer>) {
         });
 }
 
+#[derive(Component, Clone, Default)]
+struct ChaseCamera;
+
 fn spawn_camera(mut commands: Commands) {
     commands.spawn_scene(bsn! {
        Camera3d::default()
+        ChaseCamera
         Camera {
             order: 1,
         }
@@ -65,8 +69,8 @@ fn spawn_camera(mut commands: Commands) {
 }
 
 fn camera_chase_ship(
-    mut camera_transform: Single<&mut Transform, With<Camera3d>>,
-    ship_transform: Single<&Transform, (With<Ship>, Without<Camera3d>)>,
+    mut camera_transform: Single<&mut Transform, With<ChaseCamera>>,
+    ship_transform: Single<&Transform, (With<Ship>, Without<ChaseCamera>)>,
     time: Res<Time>,
 ) {
     const CAMERA_OFFSET: Vec3 = Vec3::new(0.0, 3.0, 20.0);

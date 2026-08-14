@@ -12,8 +12,9 @@ pub struct ShipPlugin;
 
 impl Plugin for ShipPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_ship)
+        app.add_systems(Startup, (spawn_ship, spawn_camera))
             .add_systems(Update, throttle::handle_throttle)
+            .add_systems(FixedUpdate, camera_chase_ship)
             .add_systems(FixedUpdate, flight::apply_flight_forces);
     }
 }
@@ -40,18 +41,45 @@ pub fn spawn_ship(mut commands: Commands, asset_server: Res<AssetServer>) {
             RigidBody::Dynamic,
             Collider::cuboid(7.0, 3.0, 9.0),
             Mass(12_000.0),
+            // Smooth out movement between physics updates
+            TransformInterpolation,
         ))
         .with_children(|parent| {
             parent.spawn((
                 WorldAssetRoot(asset_server.load("game/craft_speederD.glb#Scene0")),
-                Transform::from_translation(Vec3::new(-2., -0.4, -1.5) * asset_scale).with_scale(Vec3::splat(asset_scale)),
-            ));
-            parent.spawn((
-                Camera3d::default(),
-                // Regular chase cam
-                Transform::from_xyz(0.0, 3.0, 20.0),
-                // Side view cam
-                // Transform::from_xyz(-10.0, 0.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
+                Transform::from_translation(Vec3::new(-2., -0.4, -1.5) * asset_scale)
+                    .with_scale(Vec3::splat(asset_scale)),
             ));
         });
+}
+
+fn spawn_camera(mut commands: Commands) {
+    commands.spawn_scene(bsn! {
+       Camera3d::default()
+        TransformInterpolation
+    });
+}
+
+fn camera_chase_ship(
+    mut camera_transform: Single<&mut Transform, With<Camera3d>>,
+    ship_transform: Single<&Transform, (With<Ship>, Without<Camera3d>)>,
+    time: Res<Time>,
+) {
+    const CAMERA_OFFSET: Vec3 = Vec3::new(0.0, 3.0, 10.0);
+    const BASE_STIFFNESS: f32 = 5.0;
+
+    let target_position = ship_transform.transform_point(CAMERA_OFFSET);
+
+    let target_rotation = ship_transform.rotation;
+
+    let true_offset_distance = camera_transform.translation.distance(target_position);
+    let translation_stiffness =
+        BASE_STIFFNESS * (1.0 + (0.3 * true_offset_distance / CAMERA_OFFSET.length()).exp());
+
+    let delta_time = time.delta_secs();
+
+    let decay = 1.0 - (-translation_stiffness * delta_time).exp();
+
+    camera_transform.translation = camera_transform.translation.lerp(target_position, decay);
+    camera_transform.rotation = camera_transform.rotation.slerp(target_rotation, decay);
 }

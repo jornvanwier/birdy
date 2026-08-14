@@ -1,0 +1,59 @@
+name: Deploy Bevy to Pages
+
+on:
+  push:
+    branches: ["main"] # Change this to your default branch name
+  workflow_dispatch:
+
+# Permissions needed to deploy to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang lld mold
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          # This ensures the cache is shared across builds
+          shared-key: "bevy-wasm-build"
+
+      - name: Download and Install Trunk
+        run: |
+          curl -sL https://github.com/trunk-rs/trunk/releases/download/v0.21.5/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf - -C /usr/local/bin
+
+      - name: Build with Trunk
+        # mold/lld doesn't affect the WASM linker directly, but speeds up build-scripts/procmacros
+        run: trunk build --release --public-url "./" -d dist
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

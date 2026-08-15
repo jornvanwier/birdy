@@ -142,9 +142,7 @@ fn is_touch_device() -> bool {
     #[cfg(target_arch = "wasm32")]
     {
         if let Some(window) = web_sys::window() {
-            if let Ok(points) = window.navigator().max_touch_points() {
-                return points > 0;
-            }
+            return window.navigator().max_touch_points() > 0;
         }
         return false;
     }

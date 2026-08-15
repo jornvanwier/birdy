@@ -10,6 +10,7 @@ bevy-inspector-egui = "0.37.0"
 bevy_embedded_assets = "0.16.0"
 leafwing-input-manager = "0.21.0"
 shadow-rs = { version = "2.0.0", default-features = false }
+virtual_joystick = "2.8.0"
 
 [build-dependencies]
 shadow-rs = "2.0.0"

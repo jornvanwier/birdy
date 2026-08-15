@@ -3,14 +3,12 @@ mod input;
 pub mod ship;
 mod ui;
 
-use crate::input::Action;
 use crate::ship::ShipPlugin;
 use crate::ui::HudPlugin;
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_embedded_assets::{EmbeddedAssetPlugin, PluginMode};
 use bevy_inspector_egui::bevy_egui::EguiPlugin;
-use leafwing_input_manager::prelude::*;
 use shadow_rs::shadow;
 
 shadow!(build_info);
@@ -33,7 +31,7 @@ fn main() {
             }),
             EguiPlugin::default(),
             PhysicsPlugins::default(),
-            InputManagerPlugin::<Action>::default(),
+            input::InputPlugin,
             ShipPlugin,
             HudPlugin,
             debug::DebugPlugin,

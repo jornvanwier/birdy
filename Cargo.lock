@@ -2016,6 +2016,7 @@ dependencies = [
  "leafwing-input-manager",
  "shadow-rs",
  "virtual_joystick",
+ "web-sys",
 ]
 
 [[package]]

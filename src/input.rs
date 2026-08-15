@@ -87,6 +87,11 @@ fn spawn_joystick(mut commands: Commands, asset_server: Res<AssetServer>) {
             position_type: PositionType::Absolute,
             left: Val::Px(75.),
             bottom: Val::Px(75.),
+            display: if is_touch_device() {
+                Display::Flex
+            } else {
+                Display::None
+            },
             ..default()
         },
         JoystickFixed,
@@ -122,5 +127,31 @@ fn apply_joystick_to_leafwing(
         for mut action_state in &mut action_query {
             action_state.set_axis_pair(&Action::RollPitch, stick_state.roll_pitch);
         }
+    }
+}
+
+/// Checks compile-time OS and browser capabilities
+fn is_touch_device() -> bool {
+    // 1. Android & iOS are always touch-first devices
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        return true;
+    }
+
+    // 2. Web browser: check navigator.maxTouchPoints
+    #[cfg(target_arch = "wasm32")]
+    {
+        if let Some(window) = web_sys::window() {
+            if let Ok(points) = window.navigator().max_touch_points() {
+                return points > 0;
+            }
+        }
+        return false;
+    }
+
+    // 3. Desktop builds default to false unless touched
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    {
+        false
     }
 }

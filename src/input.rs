@@ -82,16 +82,14 @@ fn spawn_joystick(mut commands: Commands, asset_server: Res<AssetServer>) {
         Vec2::new(75., 75.),
         Vec2::new(150., 150.),
         Node {
-            // Covers only the bottom-right 50% x 50% quadrant of the screen
-            width: Val::Percent(50.),
-            height: Val::Percent(50.),
+            width: Val::Px(150.),
+            height: Val::Px(150.),
             position_type: PositionType::Absolute,
-            left: Val::Px(0.),
-            bottom: Val::Px(0.),
-
+            left: Val::Px(75.),
+            bottom: Val::Px(75.),
             ..default()
         },
-        JoystickFloating,
+        JoystickFixed,
         NoAction,
     );
 }

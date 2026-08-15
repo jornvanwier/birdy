@@ -20,12 +20,14 @@ impl Throttle {
         }
     }
 
-    pub fn update(&mut self, delta: f32, delta_secs: f32) {
+    pub fn adjust_target_delta(&mut self, delta: f32, delta_secs: f32) {
         if delta != 0.0 {
             self.target += delta * self.change_rate * delta_secs;
             self.target = self.target.clamp(0.0, 1.0);
         }
+    }
 
+    pub fn update(&mut self, delta_secs: f32) {
         self.current += (self.target - self.current) * (self.smoothness * delta_secs).min(1.0);
     }
 }
@@ -34,8 +36,16 @@ pub(crate) fn handle_throttle(
     mut query: Query<(&ActionState<Action>, &mut Throttle)>,
 ) {
     for (action_state, mut throttle) in query.iter_mut() {
-        let delta = action_state.value(&Action::Throttle);
+        let delta_t = time.delta_secs();
+        if action_state.pressed(&Action::FullThrottle) {
+            throttle.target = 1.;
+        } else if action_state.pressed(&Action::CutThrottle) {
+            throttle.target = 0.;
+        } else {
+            let throttle_dir = action_state.value(&Action::Throttle);
+            throttle.adjust_target_delta(throttle_dir, delta_t);
+        }
 
-        throttle.update(delta, time.delta_secs());
+        throttle.update(delta_t);
     }
 }

@@ -44,6 +44,8 @@ pub struct VirtualJoystickState {
 pub enum Action {
     #[actionlike(Axis)]
     Throttle,
+    FullThrottle,
+    CutThrottle,
     #[actionlike(DualAxis)]
     RollPitch,
     #[actionlike(Axis)]
@@ -68,6 +70,10 @@ pub fn create_input_map() -> InputMap<Action> {
             Action::Yaw,
             VirtualAxis::new(GamepadButton::LeftTrigger, GamepadButton::RightTrigger),
         )
+        .with(Action::CutThrottle, KeyCode::KeyX)
+        .with(Action::CutThrottle, GamepadButton::DPadLeft)
+        .with(Action::FullThrottle, KeyCode::KeyZ)
+        .with(Action::FullThrottle, GamepadButton::DPadRight)
 }
 
 fn spawn_joystick(mut commands: Commands, asset_server: Res<AssetServer>) {

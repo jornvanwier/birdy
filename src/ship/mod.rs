@@ -1,10 +1,10 @@
 use crate::input::create_input_map;
-use crate::ship::throttle::Throttle;
+use crate::ship::thrust::Thrust;
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
 mod flight;
-mod throttle;
+mod thrust;
 
 use crate::ship::flight::{AeroSurface, ControlSurfaceActuator, ControlSurfaceOrientation};
 pub use flight::{FlightModel, FlightTelemetry};
@@ -17,7 +17,7 @@ impl Plugin for ShipPlugin {
             .add_systems(
                 Update,
                 (
-                    throttle::handle_throttle,
+                    thrust::handle_throttle,
                     flight::set_control_surface_targets,
                     flight::update_control_surfaces.after(flight::set_control_surface_targets),
                 ),
@@ -43,6 +43,12 @@ pub fn spawn_ship(mut commands: Commands, asset_server: Res<AssetServer>) {
         stall_angle: 0.43, // ~25 degrees
     };
 
+    let aileron_actuator = ControlSurfaceActuator {
+        max_angle: f32::to_radians(8.0),
+        speed: 6.0,
+        ..default()
+    };
+
     let fin_rot = Quat::from_rotation_z(std::f32::consts::FRAC_PI_2);
 
     commands
@@ -52,7 +58,7 @@ pub fn spawn_ship(mut commands: Commands, asset_server: Res<AssetServer>) {
             Visibility::default()
             FlightTelemetry::default()
             template_value(LinearVelocity(Vec3::NEG_Z * 300.0))
-            Throttle::new(1.0, 0.5, 5.0)
+            Thrust::new(1.0, 140_000., 0.5, 5.0)
             Transform::from_xyz(0.0, 15.0, 10.0)
             template_value(RigidBody::Dynamic)
             Collider::cuboid(7.0, 3.0, 9.0)
@@ -81,11 +87,7 @@ pub fn spawn_ship(mut commands: Commands, asset_server: Res<AssetServer>) {
                     #LeftAileron
                     template_value(AeroSurface { area: 4.0, ..base_aero })
                     template_value(ControlSurfaceOrientation::Roll { negate: false })
-                    ControlSurfaceActuator {
-                        max_angle: f32::to_radians(20.0),
-                        speed: 6.0,
-                        target_deflection: 0.0,
-                    }
+                    template_value(aileron_actuator)
                     Mesh3d(asset_value(Cuboid::new(1.5, 0.12, 1.4)))
                     MeshMaterial3d<StandardMaterial>(asset_value(Color::srgb(0.2, 0.8, 0.9)))
                     Transform::from_xyz(-4.5, 0.0, 0.8)
@@ -94,11 +96,7 @@ pub fn spawn_ship(mut commands: Commands, asset_server: Res<AssetServer>) {
                     #RightAileron
                     template_value(AeroSurface { area: 4.0, ..base_aero })
                     template_value(ControlSurfaceOrientation::Roll { negate: true })
-                    ControlSurfaceActuator {
-                        max_angle: f32::to_radians(20.0),
-                        speed: 6.0,
-                        target_deflection: 0.0,
-                    }
+                    template_value(aileron_actuator)
                     Mesh3d(asset_value(Cuboid::new(1.5, 0.12, 1.4)))
                     MeshMaterial3d<StandardMaterial>(asset_value(Color::srgb(0.2, 0.8, 0.9)))
                     Transform::from_xyz(4.5, 0.0, 0.8)
@@ -119,7 +117,6 @@ pub fn spawn_ship(mut commands: Commands, asset_server: Res<AssetServer>) {
                     ControlSurfaceActuator {
                         max_angle: f32::to_radians(25.0),
                         speed: 5.0,
-                        target_deflection: 0.0,
                     }
                     Mesh3d(asset_value(Cuboid::new(3.5, 0.12, 0.8)))
                     MeshMaterial3d<StandardMaterial>(asset_value(Color::srgb(0.95, 0.5, 0.1)))
@@ -141,7 +138,6 @@ pub fn spawn_ship(mut commands: Commands, asset_server: Res<AssetServer>) {
                     ControlSurfaceActuator {
                         max_angle: f32::to_radians(25.0),
                         speed: 5.0,
-                        target_deflection: 0.0,
                         base_rotation: fin_rot,
                     }
                     Mesh3d(asset_value(Cuboid::new(2.0, 0.12, 0.8)))

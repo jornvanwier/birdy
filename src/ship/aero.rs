@@ -1,38 +1,6 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
-#[derive(Component, Reflect)]
-#[reflect(Component)]
-pub struct FlightModel {
-    pub max_thrust: f32,         // Engine thrust in Newtons (N)
-    pub wing_area: f32,          // Wing surface area (m^2)
-    pub lift_coefficient: f32,   // Base lift coefficient (C_L)
-    pub lift_slope: f32,         // Rate of C_L gain per radian of AoA (C_L_alpha)
-    pub drag_coefficient: f32,   // Base drag coefficient (C_D)
-    pub induced_drag_coeff: f32, // Extra drag when unaligned with velocity
-
-    /// Center of Lift offset in local space relative to Center of Mass (+Z is behind CoM)
-    pub center_of_lift_offset: Vec3,
-    /// Center of Thrust offset in local space relative to Center of Mass (+Z is behind CoM)
-    pub center_of_thrust_offset: Vec3,
-
-    /// Tail fin location relative to Center of Mass (+Z is behind CoM)
-    pub tail_offset: Vec3,
-
-    /// Surface area of the tail fin (provides passive weathercocking stability)
-    pub tail_fin_area: f32,
-
-    pub aileron_wing_position: f32,
-
-    /// Control surface force multipliers
-    pub elevator_authority: f32,
-    pub rudder_authority: f32,
-    pub aileron_authority: f32,
-
-    /// Rotational damping factors in local space (prevents endless spin/oscillations)
-    pub angular_damping: Vec3,
-}
-
 #[derive(Component, Reflect, Clone, Default)]
 pub struct FlightTelemetry {
     pub linear_velocity: Vec3,
@@ -44,28 +12,6 @@ pub struct FlightTelemetry {
     pub slip_ratio: f32,
     pub dynamic_pressure: f32,
     pub g_force: Vec3,
-}
-
-impl Default for FlightModel {
-    fn default() -> Self {
-        Self {
-            max_thrust: 140_000.0,
-            wing_area: 32.0,
-            lift_coefficient: 0.02,
-            lift_slope: 3.5,
-            drag_coefficient: 0.02,
-            induced_drag_coeff: 0.18,
-            center_of_lift_offset: Vec3::new(0.0, 0.0, 0.35),
-            center_of_thrust_offset: Vec3::new(0.0, 0.0, 5.),
-            tail_offset: Vec3::new(0.0, 0.8, 5.5),
-            tail_fin_area: 5.0,
-            aileron_wing_position: 4.0,
-            elevator_authority: 1.5,
-            rudder_authority: 1.5,
-            aileron_authority: 1.2,
-            angular_damping: Vec3::new(2.0, 2.5, 4.0),
-        }
-    }
 }
 
 #[derive(Component, Reflect, Default, Clone, Copy)]

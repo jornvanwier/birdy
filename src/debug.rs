@@ -1,4 +1,4 @@
-use crate::ship::FlightModel;
+use crate::ship::Thrust;
 use avian3d::debug_render::PhysicsGizmos;
 use avian3d::prelude::*;
 use bevy::input::common_conditions::input_toggle_active;
@@ -34,7 +34,7 @@ impl Plugin for DebugPlugin {
 
 pub fn draw_flight_vectors(
     mut gizmos: Gizmos,
-    query: Query<(&Transform, &LinearVelocity), With<FlightModel>>,
+    query: Query<(&Transform, &LinearVelocity), With<Thrust>>,
 ) {
     let scale = 0.5; // Adjust visual length of vectors
 

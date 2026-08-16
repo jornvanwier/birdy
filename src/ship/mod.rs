@@ -1,5 +1,4 @@
 use crate::input::create_input_map;
-use crate::ship::thrust::Thrust;
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use control_surface::{ControlSurfaceActuator, ControlSurfaceOrientation};
@@ -8,8 +7,8 @@ mod aero;
 mod control_surface;
 mod thrust;
 
-use crate::ship::aero::AeroSurface;
-pub use aero::{FlightModel, FlightTelemetry};
+pub use aero::{AeroSurface, FlightTelemetry};
+pub use thrust::Thrust;
 
 pub struct ShipPlugin;
 

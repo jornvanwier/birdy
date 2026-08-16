@@ -59,6 +59,6 @@ pub fn apply_thrust(mut query: Query<(Forces, &Transform, &Thrust)>) {
         let magnitude = thrust.current_throttle * thrust.peak_thrust;
         let direction = transform.forward();
 
-        forces.apply_force(magnitude * direction);
+        forces.apply_force(direction * magnitude);
     }
 }

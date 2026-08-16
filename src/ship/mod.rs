@@ -36,14 +36,12 @@ pub fn spawn_ship(mut commands: Commands, asset_server: Res<AssetServer>) {
     let asset_scale = 4.0;
 
     let base_aero = AeroSurface {
-        area: 12.0,
+        area: 0.0,
         lift_slope: 3.5,
         drag_0: 0.02,
         induced_drag_coeff: 0.18,
         stall_angle: 0.43, // ~25 degrees
     };
-
-    let (axis_x, axis_y, axis_z) = (Vec3::X, Vec3::Y, Vec3::Z);
 
     let fin_rot = Quat::from_rotation_z(std::f32::consts::FRAC_PI_2);
 
@@ -61,139 +59,95 @@ pub fn spawn_ship(mut commands: Commands, asset_server: Res<AssetServer>) {
             Mass(12_000.0)
             TransformInterpolation
 
-            // Visual 3D Asset
-            // (
-            //     WorldAssetRoot(asset_server.load("game/craft_speederD.glb#Scene0"))
-            //     Transform::from_translation(Vec3::new(-2.0, -0.4, -1.5) * asset_scale)
-            //         .with_scale(Vec3::splat(asset_scale))
-            // )
-
             Children [
+                // --- MAIN WINGS (Fixed) ---
+                (
+                    #LeftWing
+                    template_value(AeroSurface { area: 12.0, ..base_aero })
+                    Mesh3d(asset_value(Cuboid::new(3.0, 0.1, 4.0)))
+                    MeshMaterial3d<StandardMaterial>(asset_value(Color::srgb(0.35, 0.4, 0.45)))
+                    Transform::from_xyz(-3.0, 0.0, 0.35)
+                )
+                (
+                    #RightWing
+                    template_value(AeroSurface { area: 12.0, ..base_aero })
+                    Mesh3d(asset_value(Cuboid::new(3.0, 0.1, 4.0)))
+                    MeshMaterial3d<StandardMaterial>(asset_value(Color::srgb(0.35, 0.4, 0.45)))
+                    Transform::from_xyz(3.0, 0.0, 0.35)
+                ),
 
-            // --- MAIN WINGS (Fixed) ---
-            (
-                #LeftWing
-                AeroSurface {
-                    area: 12.0,
-                    lift_slope: 3.5,
-                    drag_0: 0.02,
-                    induced_drag_coeff: 0.18,
-                    stall_angle: 0.43, // ~25 degrees
-                }
-                Transform::from_xyz(-3.0, 0.0, 0.35)
-            )
-            (
-                #RightWing
-                AeroSurface {
-                    area: 12.0,
-                    lift_slope: 3.5,
-                    drag_0: 0.02,
-                    induced_drag_coeff: 0.18,
-                    stall_angle: 0.43, // ~25 degrees
-                }
-                Transform::from_xyz(3.0, 0.0, 0.35)
-            ),
+                // --- AILERONS (Roll Control - Cyan) ---
+                (
+                    #LeftAileron
+                    template_value(AeroSurface { area: 4.0, ..base_aero })
+                    template_value(ControlSurfaceOrientation::Roll { negate: false })
+                    ControlSurfaceActuator {
+                        max_angle: f32::to_radians(20.0),
+                        speed: 6.0,
+                        target_deflection: 0.0,
+                    }
+                    Mesh3d(asset_value(Cuboid::new(1.5, 0.12, 1.4)))
+                    MeshMaterial3d<StandardMaterial>(asset_value(Color::srgb(0.2, 0.8, 0.9)))
+                    Transform::from_xyz(-4.5, 0.0, 0.8)
+                )
+                (
+                    #RightAileron
+                    template_value(AeroSurface { area: 4.0, ..base_aero })
+                    template_value(ControlSurfaceOrientation::Roll { negate: true })
+                    ControlSurfaceActuator {
+                        max_angle: f32::to_radians(20.0),
+                        speed: 6.0,
+                        target_deflection: 0.0,
+                    }
+                    Mesh3d(asset_value(Cuboid::new(1.5, 0.12, 1.4)))
+                    MeshMaterial3d<StandardMaterial>(asset_value(Color::srgb(0.2, 0.8, 0.9)))
+                    Transform::from_xyz(4.5, 0.0, 0.8)
+                ),
 
-            // --- AILERONS (Roll Control) ---
-            (
-                #LeftAileron
-                AeroSurface {
-                    area: 4.0,
-                    lift_slope: 3.5,
-                    drag_0: 0.02,
-                    induced_drag_coeff: 0.18,
-                    stall_angle: 0.43, // ~25 degrees
-                }
-                template_value(ControlSurfaceOrientation::Roll { negate: false })
-                ControlSurfaceActuator {
-                    max_angle: f32::to_radians(20.0),
-                    speed: 6.0,
-                    target_deflection: 0.0,
-                }
-                Transform::from_xyz(-4.5, 0.0, 0.8)
-            )
-            (
-                #RightAileron
-                AeroSurface {
-                    area: 4.0,
-                    lift_slope: 3.5,
-                    drag_0: 0.02,
-                    induced_drag_coeff: 0.18,
-                    stall_angle: 0.43, // ~25 degrees
-                }
-                template_value(ControlSurfaceOrientation::Roll { negate: true })
-                ControlSurfaceActuator {
-                    max_angle: f32::to_radians(20.0),
-                    speed: 6.0,
-                    target_deflection: 0.0,
-                }
-                Transform::from_xyz(4.5, 0.0, 0.8)
-            ),
+                // --- HORIZONTAL TAIL & ELEVATOR (Pitch Control - Orange) ---
+                (
+                    #HorizontalStabilizer
+                    template_value(AeroSurface { area: 3.0, ..base_aero })
+                    Mesh3d(asset_value(Cuboid::new(3.5, 0.1, 1.2)))
+                    MeshMaterial3d<StandardMaterial>(asset_value(Color::srgb(0.35, 0.4, 0.45)))
+                    Transform::from_xyz(0.0, 0.8, 5.0)
+                )
+                (
+                    #Elevator
+                    template_value(AeroSurface { area: 3.5, ..base_aero })
+                    template_value(ControlSurfaceOrientation::Pitch)
+                    ControlSurfaceActuator {
+                        max_angle: f32::to_radians(25.0),
+                        speed: 5.0,
+                        target_deflection: 0.0,
+                    }
+                    Mesh3d(asset_value(Cuboid::new(3.5, 0.12, 0.8)))
+                    MeshMaterial3d<StandardMaterial>(asset_value(Color::srgb(0.95, 0.5, 0.1)))
+                    Transform::from_xyz(0.0, 0.8, 5.8)
+                ),
 
-            // --- HORIZONTAL TAIL & ELEVATOR (Pitch Control & Stability) ---
-            (
-                #HorizontalStabilizer
-                AeroSurface {
-                    area: 3.0,
-                    lift_slope: 3.5,
-                    drag_0: 0.02,
-                    induced_drag_coeff: 0.18,
-                    stall_angle: 0.43, // ~25 degrees
-                }
-                Transform::from_xyz(0.0, 0.8, 5.0)
-            )
-            (
-                #Elevator
-                AeroSurface {
-                    area: 3.5,
-                    lift_slope: 3.5,
-                    drag_0: 0.02,
-                    induced_drag_coeff: 0.18,
-                    stall_angle: 0.43, // ~25 degrees
-                }
-                template_value(ControlSurfaceOrientation::Pitch)
-                ControlSurfaceActuator {
-                    max_angle: f32::to_radians(25.0),
-                    speed: 5.0,
-                    target_deflection: 0.0,
-                }
-                Transform::from_xyz(0.0, 0.8, 5.8)
-            ),
-
-            // --- VERTICAL TAIL FIN & RUDDER (Yaw Stability & Weathercocking) ---
-            // Rotated 90° on Z so wing normal (Vec3::Y) points horizontally along X (Vec3::NEG_X)
-            (
-                #VerticalStabilizer
-                AeroSurface {
-                    area: 3.0,
-                    lift_slope: 3.5,
-                    drag_0: 0.02,
-                    induced_drag_coeff: 0.18,
-                    stall_angle: 0.43, // ~25 degrees
-                }
-                template_value(Transform::from_xyz(0.0, 1.2, 5.2)
-                    .with_rotation(Quat::from_rotation_z(std::f32::consts::FRAC_PI_2)))
-            ),
-            (
-                #Rudder
-                AeroSurface {
-                    area: 2.0,
-                    lift_slope: 3.5,
-                    drag_0: 0.02,
-                    induced_drag_coeff: 0.18,
-                    stall_angle: 0.43, // ~25 degrees
-                }
-                template_value(ControlSurfaceOrientation::Yaw)
-                ControlSurfaceActuator {
-                    // When rotated 90 deg around Z, local Y is world -X, so rotating around local Y turns the rudder left/right
-                    max_angle: f32::to_radians(25.0),
-                    speed: 5.0,
-                    target_deflection: 0.0,
-                base_rotation: fin_rot,
-                }
-                template_value(Transform::from_xyz(0.0, 1.2, 6.0)
-                    .with_rotation(fin_rot))
-            )
+                // --- VERTICAL TAIL FIN & RUDDER (Yaw Control - Magenta) ---
+                (
+                    #VerticalStabilizer
+                    template_value(AeroSurface { area: 3.0, ..base_aero })
+                    Mesh3d(asset_value(Cuboid::new(2.0, 0.1, 1.5)))
+                    MeshMaterial3d<StandardMaterial>(asset_value(Color::srgb(0.35, 0.4, 0.45)))
+                    template_value(Transform::from_xyz(0.0, 1.2, 5.2).with_rotation(fin_rot))
+                ),
+                (
+                    #Rudder
+                    template_value(AeroSurface { area: 2.0, ..base_aero })
+                    template_value(ControlSurfaceOrientation::Yaw)
+                    ControlSurfaceActuator {
+                        max_angle: f32::to_radians(25.0),
+                        speed: 5.0,
+                        target_deflection: 0.0,
+                        base_rotation: fin_rot,
+                    }
+                    Mesh3d(asset_value(Cuboid::new(2.0, 0.12, 0.8)))
+                    MeshMaterial3d<StandardMaterial>(asset_value(Color::srgb(0.9, 0.2, 0.6)))
+                    template_value(Transform::from_xyz(0.0, 1.2, 6.0).with_rotation(fin_rot))
+                )
             ]
         })
         .insert(input_map)
@@ -205,12 +159,13 @@ pub fn spawn_ship(mut commands: Commands, asset_server: Res<AssetServer>) {
             ));
         });
 }
+
 #[derive(Component, Clone, Default)]
 struct ChaseCamera;
 
 fn spawn_camera(mut commands: Commands) {
     commands.spawn_scene(bsn! {
-       Camera3d::default()
+        Camera3d::default()
         ChaseCamera
         Camera {
             order: 1,
@@ -228,7 +183,6 @@ fn camera_chase_ship(
     const BASE_STIFFNESS: f32 = 5.0;
 
     let target_position = ship_transform.transform_point(CAMERA_OFFSET);
-
     let target_rotation = ship_transform.rotation;
 
     let true_offset_distance = camera_transform.translation.distance(target_position);
@@ -236,7 +190,6 @@ fn camera_chase_ship(
         BASE_STIFFNESS * (1.0 + (5.0 * true_offset_distance / CAMERA_OFFSET.length()).exp());
 
     let delta_time = time.delta_secs();
-
     let decay = 1.0 - (-translation_stiffness * delta_time).exp();
 
     camera_transform.translation = camera_transform.translation.lerp(target_position, decay);

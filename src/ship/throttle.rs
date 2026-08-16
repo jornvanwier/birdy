@@ -2,7 +2,7 @@ use crate::input::Action;
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
-#[derive(Component, Reflect)]
+#[derive(Component, Clone, Default, Reflect)]
 pub struct Throttle {
     pub current: f32,
     pub target: f32,

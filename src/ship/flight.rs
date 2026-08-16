@@ -37,7 +37,7 @@ pub struct FlightModel {
     pub angular_damping: Vec3,
 }
 
-#[derive(Component, Reflect, Default)]
+#[derive(Component, Reflect, Clone, Default)]
 pub struct FlightTelemetry {
     pub linear_velocity: Vec3,
     pub angular_velocity: Vec3,
@@ -72,7 +72,7 @@ impl Default for FlightModel {
     }
 }
 
-#[derive(Component, Reflect, Clone, Copy)]
+#[derive(Component, Reflect, Default, Clone, Copy)]
 pub struct AeroSurface {
     /// Surface area in m^2
     pub area: f32,
@@ -86,7 +86,7 @@ pub struct AeroSurface {
     pub stall_angle: f32,
 }
 
-#[derive(Component, Reflect, Default)]
+#[derive(Component, Reflect, Clone, Default)]
 pub enum ControlSurfaceOrientation {
     #[default]
     Pitch,
@@ -120,12 +120,23 @@ pub fn set_control_surface_targets(
     }
 }
 
-#[derive(Component, Reflect, Default)]
+#[derive(Component, Reflect, Clone)]
 pub struct ControlSurfaceActuator {
-    pub axis: Vec3,             // Local rotation axis (e.g., Vec3::X for pitch hinge)
     pub max_angle: f32,         // Max deflection in radians
     pub speed: f32,             // Radians per second
     pub target_deflection: f32, // -1.0 to 1.0 from input
+    pub base_rotation: Quat,    // Resting orientation (e.g. 90 deg Z for vertical tail)
+}
+
+impl Default for ControlSurfaceActuator {
+    fn default() -> Self {
+        Self {
+            max_angle: f32::to_radians(25.0),
+            speed: 5.0,
+            target_deflection: 0.0,
+            base_rotation: Quat::IDENTITY,
+        }
+    }
 }
 
 pub fn update_control_surfaces(
@@ -134,9 +145,9 @@ pub fn update_control_surfaces(
 ) {
     for (mut transform, actuator) in query.iter_mut() {
         let target_angle = actuator.target_deflection * actuator.max_angle;
-        let target_rot = Quat::from_axis_angle(actuator.axis, target_angle);
+        let deflection_rot = Quat::from_rotation_x(target_angle);
+        let target_rot = actuator.base_rotation * deflection_rot;
 
-        // Smoothly rotate towards the target deflection
         transform.rotation = transform
             .rotation
             .rotate_towards(target_rot, actuator.speed * time.delta_secs());

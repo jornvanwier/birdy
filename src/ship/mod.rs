@@ -6,6 +6,7 @@ use bevy::prelude::*;
 mod flight;
 mod throttle;
 
+use crate::ship::flight::{AeroSurface, ControlSurfaceActuator, ControlSurfaceOrientation};
 pub use flight::{FlightModel, FlightTelemetry};
 
 pub struct ShipPlugin;
@@ -26,32 +27,176 @@ impl Plugin for ShipPlugin {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Clone, Default)]
 pub struct Ship;
 
 pub fn spawn_ship(mut commands: Commands, asset_server: Res<AssetServer>) {
     info!("Spawning ship");
     let input_map = create_input_map();
+    let asset_scale = 4.0;
 
-    let asset_scale = 4.;
+    let base_aero = AeroSurface {
+        area: 12.0,
+        lift_slope: 3.5,
+        drag_0: 0.02,
+        induced_drag_coeff: 0.18,
+        stall_angle: 0.43, // ~25 degrees
+    };
+
+    let (axis_x, axis_y, axis_z) = (Vec3::X, Vec3::Y, Vec3::Z);
+
+    let fin_rot = Quat::from_rotation_z(std::f32::consts::FRAC_PI_2);
 
     commands
-        .spawn(input_map)
-        .insert((
-            Name::new("Player"),
-            Ship,
-            Visibility::default(),
-            FlightModel::default(),
-            FlightTelemetry::default(),
-            LinearVelocity(Vec3::NEG_Z * 300.),
-            Throttle::new(1., 0.5, 5.0),
-            Transform::from_xyz(0., 15., 10.),
-            RigidBody::Dynamic,
-            Collider::cuboid(7.0, 3.0, 9.0),
-            Mass(12_000.0),
-            // Smooth out movement between physics updates
-            TransformInterpolation,
-        ))
+        .spawn_scene(bsn! {
+            Name::new("Player")
+            Ship
+            Visibility::default()
+            FlightTelemetry::default()
+            template_value(LinearVelocity(Vec3::NEG_Z * 300.0))
+            Throttle::new(1.0, 0.5, 5.0)
+            Transform::from_xyz(0.0, 15.0, 10.0)
+            template_value(RigidBody::Dynamic)
+            Collider::cuboid(7.0, 3.0, 9.0)
+            Mass(12_000.0)
+            TransformInterpolation
+
+            // Visual 3D Asset
+            // (
+            //     WorldAssetRoot(asset_server.load("game/craft_speederD.glb#Scene0"))
+            //     Transform::from_translation(Vec3::new(-2.0, -0.4, -1.5) * asset_scale)
+            //         .with_scale(Vec3::splat(asset_scale))
+            // )
+
+            Children [
+
+            // --- MAIN WINGS (Fixed) ---
+            (
+                #LeftWing
+                AeroSurface {
+                    area: 12.0,
+                    lift_slope: 3.5,
+                    drag_0: 0.02,
+                    induced_drag_coeff: 0.18,
+                    stall_angle: 0.43, // ~25 degrees
+                }
+                Transform::from_xyz(-3.0, 0.0, 0.35)
+            )
+            (
+                #RightWing
+                AeroSurface {
+                    area: 12.0,
+                    lift_slope: 3.5,
+                    drag_0: 0.02,
+                    induced_drag_coeff: 0.18,
+                    stall_angle: 0.43, // ~25 degrees
+                }
+                Transform::from_xyz(3.0, 0.0, 0.35)
+            ),
+
+            // --- AILERONS (Roll Control) ---
+            (
+                #LeftAileron
+                AeroSurface {
+                    area: 4.0,
+                    lift_slope: 3.5,
+                    drag_0: 0.02,
+                    induced_drag_coeff: 0.18,
+                    stall_angle: 0.43, // ~25 degrees
+                }
+                template_value(ControlSurfaceOrientation::Roll { negate: false })
+                ControlSurfaceActuator {
+                    max_angle: f32::to_radians(20.0),
+                    speed: 6.0,
+                    target_deflection: 0.0,
+                }
+                Transform::from_xyz(-4.5, 0.0, 0.8)
+            )
+            (
+                #RightAileron
+                AeroSurface {
+                    area: 4.0,
+                    lift_slope: 3.5,
+                    drag_0: 0.02,
+                    induced_drag_coeff: 0.18,
+                    stall_angle: 0.43, // ~25 degrees
+                }
+                template_value(ControlSurfaceOrientation::Roll { negate: true })
+                ControlSurfaceActuator {
+                    max_angle: f32::to_radians(20.0),
+                    speed: 6.0,
+                    target_deflection: 0.0,
+                }
+                Transform::from_xyz(4.5, 0.0, 0.8)
+            ),
+
+            // --- HORIZONTAL TAIL & ELEVATOR (Pitch Control & Stability) ---
+            (
+                #HorizontalStabilizer
+                AeroSurface {
+                    area: 3.0,
+                    lift_slope: 3.5,
+                    drag_0: 0.02,
+                    induced_drag_coeff: 0.18,
+                    stall_angle: 0.43, // ~25 degrees
+                }
+                Transform::from_xyz(0.0, 0.8, 5.0)
+            )
+            (
+                #Elevator
+                AeroSurface {
+                    area: 3.5,
+                    lift_slope: 3.5,
+                    drag_0: 0.02,
+                    induced_drag_coeff: 0.18,
+                    stall_angle: 0.43, // ~25 degrees
+                }
+                template_value(ControlSurfaceOrientation::Pitch)
+                ControlSurfaceActuator {
+                    max_angle: f32::to_radians(25.0),
+                    speed: 5.0,
+                    target_deflection: 0.0,
+                }
+                Transform::from_xyz(0.0, 0.8, 5.8)
+            ),
+
+            // --- VERTICAL TAIL FIN & RUDDER (Yaw Stability & Weathercocking) ---
+            // Rotated 90° on Z so wing normal (Vec3::Y) points horizontally along X (Vec3::NEG_X)
+            (
+                #VerticalStabilizer
+                AeroSurface {
+                    area: 3.0,
+                    lift_slope: 3.5,
+                    drag_0: 0.02,
+                    induced_drag_coeff: 0.18,
+                    stall_angle: 0.43, // ~25 degrees
+                }
+                template_value(Transform::from_xyz(0.0, 1.2, 5.2)
+                    .with_rotation(Quat::from_rotation_z(std::f32::consts::FRAC_PI_2)))
+            ),
+            (
+                #Rudder
+                AeroSurface {
+                    area: 2.0,
+                    lift_slope: 3.5,
+                    drag_0: 0.02,
+                    induced_drag_coeff: 0.18,
+                    stall_angle: 0.43, // ~25 degrees
+                }
+                template_value(ControlSurfaceOrientation::Yaw)
+                ControlSurfaceActuator {
+                    // When rotated 90 deg around Z, local Y is world -X, so rotating around local Y turns the rudder left/right
+                    max_angle: f32::to_radians(25.0),
+                    speed: 5.0,
+                    target_deflection: 0.0,
+                base_rotation: fin_rot,
+                }
+                template_value(Transform::from_xyz(0.0, 1.2, 6.0)
+                    .with_rotation(fin_rot))
+            )
+            ]
+        })
+        .insert(input_map)
         .with_children(|parent| {
             parent.spawn((
                 WorldAssetRoot(asset_server.load("game/craft_speederD.glb#Scene0")),
@@ -60,7 +205,6 @@ pub fn spawn_ship(mut commands: Commands, asset_server: Res<AssetServer>) {
             ));
         });
 }
-
 #[derive(Component, Clone, Default)]
 struct ChaseCamera;
 

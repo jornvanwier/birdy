@@ -1,11 +1,10 @@
-use avian3d::prelude::{Forces, WriteRigidBodyForces};
 use crate::input::Action;
+use avian3d::prelude::*;
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
 #[derive(Component, Clone, Default, Reflect)]
 pub struct Thrust {
-
     pub current_throttle: f32,
     pub target_throttle: f32,
     pub peak_thrust: f32,
@@ -32,7 +31,8 @@ impl Thrust {
     }
 
     pub fn update(&mut self, delta_secs: f32) {
-        self.current_throttle += (self.target_throttle - self.current_throttle) * (self.smoothness * delta_secs).min(1.0);
+        self.current_throttle += (self.target_throttle - self.current_throttle)
+            * (self.smoothness * delta_secs).min(1.0);
     }
 }
 pub(crate) fn handle_throttle(
@@ -54,9 +54,7 @@ pub(crate) fn handle_throttle(
     }
 }
 
-pub fn apply_thrust(
-    mut query: Query<(Forces, &Transform, &Thrust)>,
-) {
+pub fn apply_thrust(mut query: Query<(Forces, &Transform, &Thrust)>) {
     for (mut forces, transform, thrust) in query.iter_mut() {
         let magnitude = thrust.current_throttle * thrust.peak_thrust;
         let direction = transform.forward();

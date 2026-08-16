@@ -1,9 +1,5 @@
-use crate::input::Action;
-use crate::ship::Ship;
-use avian3d::prelude::forces::ForcesItem;
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use leafwing_input_manager::action_state::ActionState;
 
 #[derive(Component, Reflect)]
 #[reflect(Component)]

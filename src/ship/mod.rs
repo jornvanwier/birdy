@@ -2,12 +2,14 @@ use crate::input::create_input_map;
 use crate::ship::thrust::Thrust;
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use control_surface::{ControlSurfaceActuator, ControlSurfaceOrientation};
 
-mod flight;
+mod aero;
+mod control_surface;
 mod thrust;
 
-use crate::ship::flight::{AeroSurface, ControlSurfaceActuator, ControlSurfaceOrientation};
-pub use flight::{FlightModel, FlightTelemetry};
+use crate::ship::aero::AeroSurface;
+pub use aero::{FlightModel, FlightTelemetry};
 
 pub struct ShipPlugin;
 
@@ -18,12 +20,19 @@ impl Plugin for ShipPlugin {
                 Update,
                 (
                     thrust::handle_throttle,
-                    flight::set_control_surface_targets,
-                    flight::update_control_surfaces.after(flight::set_control_surface_targets),
+                    control_surface::set_control_surface_targets,
+                    control_surface::update_control_surfaces
+                        .after(control_surface::set_control_surface_targets),
                 ),
             )
-            .add_systems(FixedUpdate, camera_chase_ship)
-            .add_systems(FixedUpdate, flight::calculate_aero_surface_forces);
+            .add_systems(
+                FixedUpdate,
+                (
+                    camera_chase_ship,
+                    aero::calculate_aero_surface_forces,
+                    thrust::apply_thrust,
+                ),
+            );
     }
 }
 

@@ -1,5 +1,5 @@
 use crate::input::Action;
-use crate::ship::throttle::Throttle;
+use crate::ship::Ship;
 use avian3d::prelude::forces::ForcesItem;
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -72,164 +72,306 @@ impl Default for FlightModel {
     }
 }
 
-fn apply_force_at_offset(forces: &mut ForcesItem, force: Vec3, local_offset: Vec3, rotation: Quat) {
-    forces.apply_force(force);
-    let world_offset = rotation * local_offset;
-    forces.apply_torque(world_offset.cross(force));
+#[derive(Component, Reflect, Clone, Copy)]
+pub struct AeroSurface {
+    /// Surface area in m^2
+    pub area: f32,
+    /// Rate of C_L gain per radian of AoA (standard thin airfoil is ~2.0 * PI, or ~3.5-5.5)
+    pub lift_slope: f32,
+    /// Zero-lift parasitic drag coefficient (typically 0.01 - 0.03)
+    pub drag_0: f32,
+    /// Induced drag factor k (typically ~0.04 - 0.2 depending on aspect ratio)
+    pub induced_drag_coeff: f32,
+    /// Stall angle in radians (e.g., 0.35 rad ≈ 20°)
+    pub stall_angle: f32,
 }
 
-pub fn apply_flight_forces(
-    mut query: Query<(
-        Forces,
-        Mut<FlightTelemetry>,
-        &Mass,
-        &Transform,
-        &Throttle,
-        &FlightModel,
-        &ActionState<Action>,
-    )>,
+#[derive(Component, Reflect, Default)]
+pub enum ControlSurfaceOrientation {
+    #[default]
+    Pitch,
+    Roll {
+        negate: bool,
+    },
+    Yaw,
+}
+pub fn set_control_surface_targets(
+    ships: Query<(&ActionState<Action>, &Children), With<Ship>>,
+    mut actuators: Query<(&ControlSurfaceOrientation, &mut ControlSurfaceActuator)>,
 ) {
-    let air_density = 1.225;
-
-    for (mut forces, mut telemetry, mass, transform, throttle, flight_model, action_state) in
-        query.iter_mut()
-    {
-        let up = *transform.up();
-        let right = *transform.right();
-        let forward = *transform.forward();
-        let rotation = transform.rotation;
-
-        let velocity = forces.linear_velocity();
-        let speed = velocity.length();
-
-        let world_angular_velocity = forces.angular_velocity();
-        let local_angular_velocity = rotation.inverse() * world_angular_velocity;
-
-        // Thrust
-        let thrust_magnitude = flight_model.max_thrust * throttle.current;
-        let thrust_force = forward * thrust_magnitude;
-        apply_force_at_offset(
-            &mut forces,
-            thrust_force,
-            flight_model.center_of_thrust_offset,
-            rotation,
-        );
-
-        // if speed > 0.01 {
-        let vel_dir = if speed > 0.01 {
-            velocity / speed
-        } else {
-            Vec3::Y
-        };
-        let dynamic_pressure = calculate_dynamic_pressure(air_density, speed);
-
-        let local_vel = rotation.inverse() * vel_dir;
-        // Cap angle of attack at ~25 degrees (0.43 rad) to simulate wing stall
-        let angle_of_attack = (-local_vel.y).atan2(-local_vel.z).clamp(-0.43, 0.43);
-
-        let effective_cl =
-            flight_model.lift_coefficient + (angle_of_attack * flight_model.lift_slope);
-
-        // Drag
-        let induced_drag = flight_model.induced_drag_coeff * effective_cl.powi(2);
-        let total_drag_coeff = flight_model.drag_coefficient + induced_drag;
-        let drag_magnitude = dynamic_pressure * flight_model.wing_area * total_drag_coeff;
-        let drag_force = -vel_dir * drag_magnitude;
-        forces.apply_force(drag_force);
-
-        let lift_dir = (up - vel_dir * up.dot(vel_dir)).normalize_or_zero();
-        let lift_magnitude = dynamic_pressure * flight_model.wing_area * effective_cl;
-        let lift_force = lift_dir * lift_magnitude;
-        apply_force_at_offset(
-            &mut forces,
-            lift_force,
-            flight_model.center_of_lift_offset,
-            rotation,
-        );
-
-        // Tail fin side drag (dynamic weathercocking)
-        // Combined linear side speed + rotational speed of the tail fin (omega * radius)
-        let tail_rotational_side_speed = local_angular_velocity.y * flight_model.tail_offset.z;
-        let total_tail_side_speed = velocity.dot(right) + tail_rotational_side_speed;
-        let slip_ratio = (if speed > 0.01 {
-            total_tail_side_speed / speed
-        } else {
-            0.0
-        })
-        .clamp(-1.0, 1.0);
-
-        let side_drag_force = -right * (dynamic_pressure * flight_model.tail_fin_area * slip_ratio);
-        apply_force_at_offset(
-            &mut forces,
-            side_drag_force,
-            flight_model.tail_offset,
-            rotation,
-        );
-
-        // Input handling
-        // TODO trim
+    for (action_state, children) in &ships {
         let Vec2 {
             x: roll_input,
             y: pitch_input,
         } = action_state.clamped_axis_pair(&Action::RollPitch);
         let yaw_input = action_state.value(&Action::Yaw);
 
-        // Elevator
-        let elevator_force =
-            up * (pitch_input * flight_model.elevator_authority * dynamic_pressure);
-        apply_force_at_offset(
-            &mut forces,
-            elevator_force,
-            flight_model.tail_offset,
-            rotation,
-        );
-
-        // Rudder
-        let rudder_force = right * (-yaw_input * flight_model.rudder_authority * dynamic_pressure);
-        apply_force_at_offset(
-            &mut forces,
-            rudder_force,
-            flight_model.tail_offset,
-            rotation,
-        );
-
-        // Aileron Differential
-        let left_wing_offset = Vec3::new(-flight_model.aileron_wing_position, 0.0, 0.0);
-        let right_wing_offset = -left_wing_offset;
-
-        let aileron_force = up * (roll_input * flight_model.aileron_authority * dynamic_pressure);
-        apply_force_at_offset(&mut forces, aileron_force, left_wing_offset, rotation);
-        apply_force_at_offset(&mut forces, -aileron_force, right_wing_offset, rotation);
-
-        // Angular Damping (Prevents harmonic spring bobbing)
-        let local_damping = -local_angular_velocity * flight_model.angular_damping;
-        let world_damping = rotation * local_damping;
-        forces.apply_angular_acceleration(world_damping);
-
-        let total_force = thrust_force
-            + drag_force
-            + lift_force
-            + side_drag_force
-            + elevator_force
-            + rudder_force;
-
-        let body_mass = mass.0;
-        let world_accel = total_force / body_mass;
-        let g_force = (rotation.inverse() * world_accel) / 9.80665;
-
-        *telemetry = FlightTelemetry {
-            linear_velocity: velocity,
-            angular_velocity: local_angular_velocity,
-            thrust: thrust_force,
-            drag: drag_force,
-            lift: lift_force,
-            angle_of_attack,
-            slip_ratio,
-            dynamic_pressure,
-            g_force,
+        for child in children.iter() {
+            if let Ok((orientation, mut actuator)) = actuators.get_mut(child) {
+                actuator.target_deflection = match *orientation {
+                    ControlSurfaceOrientation::Pitch => pitch_input,
+                    ControlSurfaceOrientation::Roll { negate } => {
+                        roll_input * if negate { -1. } else { 1. }
+                    }
+                    ControlSurfaceOrientation::Yaw => yaw_input,
+                };
+            }
         }
     }
 }
+
+#[derive(Component, Reflect, Default)]
+pub struct ControlSurfaceActuator {
+    pub axis: Vec3,             // Local rotation axis (e.g., Vec3::X for pitch hinge)
+    pub max_angle: f32,         // Max deflection in radians
+    pub speed: f32,             // Radians per second
+    pub target_deflection: f32, // -1.0 to 1.0 from input
+}
+
+pub fn update_control_surfaces(
+    time: Res<Time>,
+    mut query: Query<(&mut Transform, &ControlSurfaceActuator)>,
+) {
+    for (mut transform, actuator) in query.iter_mut() {
+        let target_angle = actuator.target_deflection * actuator.max_angle;
+        let target_rot = Quat::from_axis_angle(actuator.axis, target_angle);
+
+        // Smoothly rotate towards the target deflection
+        transform.rotation = transform
+            .rotation
+            .rotate_towards(target_rot, actuator.speed * time.delta_secs());
+    }
+}
+
+pub fn calculate_aero_surface_forces(
+    mut ships: Query<(Forces, &GlobalTransform, &Children)>,
+    surfaces: Query<(&AeroSurface, &GlobalTransform)>,
+) {
+    let air_density = 1.225; // kg/m^3 (sea level standard)
+
+    for (mut forces, ship_transform, children) in ships.iter_mut() {
+        let ship_pos = ship_transform.translation();
+        let ship_lin_vel = forces.linear_velocity();
+        let ship_ang_vel = forces.angular_velocity();
+
+        let mut total_lift = Vec3::ZERO;
+        let mut total_drag = Vec3::ZERO;
+
+        for child in children.iter() {
+            let Ok((surface, surface_transform)) = surfaces.get(child) else {
+                continue;
+            };
+
+            let surf_pos = surface_transform.translation();
+            let surf_rot = surface_transform.compute_transform().rotation;
+            let surf_up = surf_rot * Vec3::Y; // Lift direction / normal to wing
+            let surf_forward = surf_rot * Vec3::NEG_Z; // Forward chord direction
+
+            // 1. Calculate local velocity of this surface through the air
+            // v_point = v_linear + omega x r
+            let arm = surf_pos - ship_pos;
+            let point_velocity = ship_lin_vel + ship_ang_vel.cross(arm);
+            let speed = point_velocity.length();
+
+            if speed < 0.1 {
+                continue;
+            }
+
+            let vel_dir = point_velocity / speed;
+            let dynamic_pressure = 0.5 * air_density * speed.powi(2);
+
+            // 2. Angle of Attack (AoA) in the surface's local pitch plane
+            let local_v = surf_rot.inverse() * point_velocity;
+            // local_v.z is backwards (-forward), local_v.y is normal (up)
+            let raw_aoa = (-local_v.y).atan2(-local_v.z);
+            let aoa = raw_aoa.clamp(-surface.stall_angle, surface.stall_angle);
+
+            // 3. Lift and Drag coefficients
+            let cl = aoa * surface.lift_slope;
+            let cd = surface.drag_0 + surface.induced_drag_coeff * cl.powi(2);
+
+            // 4. Force Magnitudes
+            let lift_mag = dynamic_pressure * surface.area * cl;
+            let drag_mag = dynamic_pressure * surface.area * cd;
+
+            // 5. Force Vectors
+            // Lift acts perpendicular to relative velocity in the chord-normal plane
+            let lift_dir = (surf_up - vel_dir * surf_up.dot(vel_dir)).normalize_or_zero();
+            let lift_force = lift_dir * lift_mag;
+
+            // Drag acts opposite to velocity
+            let drag_force = -vel_dir * drag_mag;
+
+            let total_surface_force = lift_force + drag_force;
+
+            // 6. Apply to parent rigid body at world offset
+            forces.apply_force(total_surface_force);
+            forces.apply_torque(arm.cross(total_surface_force));
+
+            total_lift += lift_force;
+            total_drag += drag_force;
+        }
+    }
+}
+
+fn apply_force_at_offset(forces: &mut ForcesItem, force: Vec3, local_offset: Vec3, rotation: Quat) {
+    forces.apply_force(force);
+    let world_offset = rotation * local_offset;
+    forces.apply_torque(world_offset.cross(force));
+}
+
+// pub fn apply_flight_forces(
+//     mut query: Query<(
+//         Forces,
+//         Mut<FlightTelemetry>,
+//         &Mass,
+//         &Transform,
+//         &Throttle,
+//         &FlightModel,
+//         &ActionState<Action>,
+//     )>,
+// ) {
+//     let air_density = 1.225;
+//
+//     for (mut forces, mut telemetry, mass, transform, throttle, flight_model, action_state) in
+//         query.iter_mut()
+//     {
+//         let up = *transform.up();
+//         let right = *transform.right();
+//         let forward = *transform.forward();
+//         let rotation = transform.rotation;
+//
+//         let velocity = forces.linear_velocity();
+//         let speed = velocity.length();
+//
+//         let world_angular_velocity = forces.angular_velocity();
+//         let local_angular_velocity = rotation.inverse() * world_angular_velocity;
+//
+//         // Thrust
+//         let thrust_magnitude = flight_model.max_thrust * throttle.current;
+//         let thrust_force = forward * thrust_magnitude;
+//         apply_force_at_offset(
+//             &mut forces,
+//             thrust_force,
+//             flight_model.center_of_thrust_offset,
+//             rotation,
+//         );
+//
+//         // if speed > 0.01 {
+//         let vel_dir = if speed > 0.01 {
+//             velocity / speed
+//         } else {
+//             Vec3::Y
+//         };
+//         let dynamic_pressure = calculate_dynamic_pressure(air_density, speed);
+//
+//         let local_vel = rotation.inverse() * vel_dir;
+//         // Cap angle of attack at ~25 degrees (0.43 rad) to simulate wing stall
+//         let angle_of_attack = (-local_vel.y).atan2(-local_vel.z).clamp(-0.43, 0.43);
+//
+//         let effective_cl =
+//             flight_model.lift_coefficient + (angle_of_attack * flight_model.lift_slope);
+//
+//         // Drag
+//         let induced_drag = flight_model.induced_drag_coeff * effective_cl.powi(2);
+//         let total_drag_coeff = flight_model.drag_coefficient + induced_drag;
+//         let drag_magnitude = dynamic_pressure * flight_model.wing_area * total_drag_coeff;
+//         let drag_force = -vel_dir * drag_magnitude;
+//         forces.apply_force(drag_force);
+//
+//         let lift_dir = (up - vel_dir * up.dot(vel_dir)).normalize_or_zero();
+//         let lift_magnitude = dynamic_pressure * flight_model.wing_area * effective_cl;
+//         let lift_force = lift_dir * lift_magnitude;
+//         apply_force_at_offset(
+//             &mut forces,
+//             lift_force,
+//             flight_model.center_of_lift_offset,
+//             rotation,
+//         );
+//
+//         // Tail fin side drag (dynamic weathercocking)
+//         // Combined linear side speed + rotational speed of the tail fin (omega * radius)
+//         let tail_rotational_side_speed = local_angular_velocity.y * flight_model.tail_offset.z;
+//         let total_tail_side_speed = velocity.dot(right) + tail_rotational_side_speed;
+//         let slip_ratio = (if speed > 0.01 {
+//             total_tail_side_speed / speed
+//         } else {
+//             0.0
+//         })
+//         .clamp(-1.0, 1.0);
+//
+//         let side_drag_force = -right * (dynamic_pressure * flight_model.tail_fin_area * slip_ratio);
+//         apply_force_at_offset(
+//             &mut forces,
+//             side_drag_force,
+//             flight_model.tail_offset,
+//             rotation,
+//         );
+//
+//         // Input handling
+//         // TODO trim
+//         let Vec2 {
+//             x: roll_input,
+//             y: pitch_input,
+//         } = action_state.clamped_axis_pair(&Action::RollPitch);
+//         let yaw_input = action_state.value(&Action::Yaw);
+//
+//         // Elevator
+//         let elevator_force =
+//             up * (pitch_input * flight_model.elevator_authority * dynamic_pressure);
+//         apply_force_at_offset(
+//             &mut forces,
+//             elevator_force,
+//             flight_model.tail_offset,
+//             rotation,
+//         );
+//
+//         // Rudder
+//         let rudder_force = right * (-yaw_input * flight_model.rudder_authority * dynamic_pressure);
+//         apply_force_at_offset(
+//             &mut forces,
+//             rudder_force,
+//             flight_model.tail_offset,
+//             rotation,
+//         );
+//
+//         // Aileron Differential
+//         let left_wing_offset = Vec3::new(-flight_model.aileron_wing_position, 0.0, 0.0);
+//         let right_wing_offset = -left_wing_offset;
+//
+//         let aileron_force = up * (roll_input * flight_model.aileron_authority * dynamic_pressure);
+//         apply_force_at_offset(&mut forces, aileron_force, left_wing_offset, rotation);
+//         apply_force_at_offset(&mut forces, -aileron_force, right_wing_offset, rotation);
+//
+//         // Angular Damping (Prevents harmonic spring bobbing)
+//         let local_damping = -local_angular_velocity * flight_model.angular_damping;
+//         let world_damping = rotation * local_damping;
+//         forces.apply_angular_acceleration(world_damping);
+//
+//         let total_force = thrust_force
+//             + drag_force
+//             + lift_force
+//             + side_drag_force
+//             + elevator_force
+//             + rudder_force;
+//
+//         let body_mass = mass.0;
+//         let world_accel = total_force / body_mass;
+//         let g_force = (rotation.inverse() * world_accel) / 9.80665;
+//
+//         *telemetry = FlightTelemetry {
+//             linear_velocity: velocity,
+//             angular_velocity: local_angular_velocity,
+//             thrust: thrust_force,
+//             drag: drag_force,
+//             lift: lift_force,
+//             angle_of_attack,
+//             slip_ratio,
+//             dynamic_pressure,
+//             g_force,
+//         }
+//     }
+// }
 
 fn calculate_dynamic_pressure(air_density: f32, speed: f32) -> f32 {
     0.5 * air_density * speed.powi(2)

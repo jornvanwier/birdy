@@ -13,9 +13,16 @@ pub struct ShipPlugin;
 impl Plugin for ShipPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, (spawn_ship, spawn_camera))
-            .add_systems(Update, throttle::handle_throttle)
+            .add_systems(
+                Update,
+                (
+                    throttle::handle_throttle,
+                    flight::set_control_surface_targets,
+                    flight::update_control_surfaces.after(flight::set_control_surface_targets),
+                ),
+            )
             .add_systems(FixedUpdate, camera_chase_ship)
-            .add_systems(FixedUpdate, flight::apply_flight_forces);
+            .add_systems(FixedUpdate, flight::calculate_aero_surface_forces);
     }
 }
 

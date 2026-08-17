@@ -4,7 +4,7 @@ use avian3d::parry::glamx::Vec3;
 use bevy::app::App;
 use bevy::camera::{Camera3d, Exposure, PerspectiveProjection, Projection};
 use bevy::core_pipeline::tonemapping::Tonemapping;
-use bevy::light::AtmosphereEnvironmentMapLight;
+use bevy::light::{AtmosphereEnvironmentMapLight, VolumetricFog};
 use bevy::pbr::AtmosphereSettings;
 use bevy::prelude::*;
 
@@ -33,6 +33,11 @@ pub fn spawn_camera(mut commands: Commands) {
         AtmosphereSettings::default(),
         AtmosphereEnvironmentMapLight::default(),
         TransformInterpolation,
+
+        VolumetricFog {
+            step_count: 64, // Increase (e.g. 96-128) if you notice banding
+            ..default()
+        },
     ));
 }
 

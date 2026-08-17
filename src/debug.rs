@@ -3,6 +3,7 @@ use avian3d::debug_render::PhysicsGizmos;
 use avian3d::prelude::*;
 use bevy::input::common_conditions::input_toggle_active;
 use bevy::prelude::*;
+use bevy_inspector_egui::bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 pub(crate) struct DebugPlugin;
@@ -12,6 +13,7 @@ impl Plugin for DebugPlugin {
         let debug_mode = input_toggle_active(false, KeyCode::F12);
 
         app.add_plugins((
+            EguiPlugin::default(),
             WorldInspectorPlugin::new().run_if(debug_mode.clone()),
             PhysicsDebugPlugin,
         ))

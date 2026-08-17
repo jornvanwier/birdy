@@ -9,7 +9,6 @@ use bevy::light::Atmosphere;
 use bevy::light::atmosphere::ScatteringMedium;
 use bevy::prelude::*;
 use bevy_embedded_assets::{EmbeddedAssetPlugin, PluginMode};
-use bevy_inspector_egui::bevy_egui::EguiPlugin;
 use shadow_rs::shadow;
 
 shadow!(build_info);
@@ -32,7 +31,6 @@ fn main() {
                 }),
                 ..default()
             }),
-            EguiPlugin::default(),
             PhysicsPlugins::default(),
             input::InputPlugin,
             ship::ShipPlugin,

@@ -101,3 +101,61 @@ pub fn calculate_aero_surface_forces(
 fn calculate_dynamic_pressure(air_density: f32, speed: f32) -> f32 {
     0.5 * air_density * speed.powi(2)
 }
+
+#[derive(Component, Reflect, Clone, Copy)]
+pub struct FuselageDrag {
+    /// Effective drag area (Cd * Area) for forward/backward flight
+    /// Streamlined shape: low value (e.g., 0.05 - 0.2 m²)
+    pub forward_area: f32,
+
+    /// Effective drag area for lateral/side-slip flight (X-axis)
+    /// Bluff cylinder shape: high value (e.g., 1.5 - 4.0 m²)
+    pub side_area: f32,
+
+    /// Effective drag area for vertical/belly flight (Y-axis)
+    /// Bluff cylinder shape: high value (e.g., 2.0 - 5.0 m²)
+    pub top_area: f32,
+}
+
+impl Default for FuselageDrag {
+    fn default() -> Self {
+        Self {
+            forward_area: 0.08, // Low resistance cutting through air
+            side_area: 2.5,     // High resistance to sideways drifting
+            top_area: 3.5,      // High resistance to vertical pancake motion
+        }
+    }
+}
+
+pub fn calculate_fuselage_drag(
+    mut ships: Query<(Forces, &GlobalTransform, &FuselageDrag)>,
+) {
+    let air_density = 1.225; // kg/m^3
+
+    for (mut forces, transform, fuselage) in ships.iter_mut() {
+        let rotation = transform.compute_transform().rotation;
+        let lin_vel = forces.linear_velocity();
+
+        // 1. Transform world velocity into local aircraft space
+        // (X = Right, Y = Up, Z = Backwards / -Z = Forward)
+        let local_v = rotation.inverse() * lin_vel;
+
+        // 2. Compute dynamic pressure per axis: 0.5 * rho * v * |v|
+        // Retaining the sign ensures drag always opposes motion along that axis
+        // TODO can we use calculate_dynamic_pressure?
+        let q_x = 0.5 * air_density * local_v.x * local_v.x.abs();
+        let q_y = 0.5 * air_density * local_v.y * local_v.y.abs();
+        let q_z = 0.5 * air_density * local_v.z * local_v.z.abs();
+
+        // 3. Local drag force opposes velocity in each axis: F = -q * (Cd * A)
+        let local_drag = Vec3::new(
+            -q_x * fuselage.side_area,
+            -q_y * fuselage.top_area,
+            -q_z * fuselage.forward_area,
+        );
+
+        // 4. Convert back to world space and apply
+        let world_drag = rotation * local_drag;
+        forces.apply_force(world_drag);
+    }
+}

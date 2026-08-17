@@ -9,6 +9,7 @@ mod thrust;
 
 pub use aero::{AeroSurface, FlightTelemetry};
 pub use thrust::Thrust;
+use crate::ship::aero::FuselageDrag;
 
 pub struct ShipPlugin;
 
@@ -29,6 +30,7 @@ impl Plugin for ShipPlugin {
                 (
                     camera_chase_ship,
                     aero::calculate_aero_surface_forces,
+                    aero::calculate_fuselage_drag,
                     thrust::apply_thrust,
                 ),
             );
@@ -74,6 +76,10 @@ pub fn spawn_ship(mut commands: Commands, asset_server: Res<AssetServer>) {
             TransformInterpolation
 
             Children [
+                (
+                    FuselageDrag
+                ),
+
                 // --- MAIN WINGS (Fixed) ---
                 (
                     #LeftWing

@@ -1,3 +1,4 @@
+use avian3d::prelude::AngularVelocity;
 use crate::input::Action;
 use crate::ship::Ship;
 
@@ -15,24 +16,32 @@ pub enum ControlSurfaceOrientation {
 }
 
 pub fn set_control_surface_targets(
-    ships: Query<(&ActionState<Action>, &Children), With<Ship>>,
+    ships: Query<(&ActionState<Action>, &AngularVelocity, &Children), With<Ship>>,
     mut actuators: Query<(&ControlSurfaceOrientation, &mut ControlSurfaceActuator)>,
 ) {
-    for (action_state, children) in &ships {
-        let Vec2 {
-            x: roll_input,
-            y: pitch_input,
-        } = action_state.clamped_axis_pair(&Action::RollPitch);
-        let yaw_input = action_state.value(&Action::Yaw);
+    // Damping gains (rate gyro feedback)
+    const PITCH_RATE_GAIN: f32 = 0.35;
+    const ROLL_RATE_GAIN: f32 = 0.20;
+    const YAW_RATE_GAIN: f32 = 0.40;
+
+    for (action_state, ang_vel, children) in &ships {
+        let Vec2 { x: roll_in, y: pitch_in } = action_state.clamped_axis_pair(&Action::RollPitch);
+        let yaw_in = action_state.value(&Action::Yaw);
+
+        // SAS adds an opposing deflection proportional to rotation speed
+        // TODO breaks when upside down
+        let pitch_cmd = pitch_in + ang_vel.x * PITCH_RATE_GAIN;
+        let roll_cmd  = roll_in  + ang_vel.z * ROLL_RATE_GAIN;
+        let yaw_cmd   = yaw_in   + ang_vel.y * YAW_RATE_GAIN;
 
         for child in children.iter() {
             if let Ok((orientation, mut actuator)) = actuators.get_mut(child) {
                 actuator.target_deflection = match *orientation {
-                    ControlSurfaceOrientation::Pitch => pitch_input,
+                    ControlSurfaceOrientation::Pitch => pitch_cmd.clamp(-1.0, 1.0),
                     ControlSurfaceOrientation::Roll { negate } => {
-                        roll_input * if negate { -1. } else { 1. }
+                        (roll_cmd * if negate { -1. } else { 1. }).clamp(-1.0, 1.0)
                     }
-                    ControlSurfaceOrientation::Yaw => yaw_input,
+                    ControlSurfaceOrientation::Yaw => yaw_cmd.clamp(-1.0, 1.0),
                 };
             }
         }

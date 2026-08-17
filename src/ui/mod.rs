@@ -1,5 +1,4 @@
 use crate::build_info;
-use bevy::camera::visibility::RenderLayers;
 use bevy::gizmos::config::GizmoConfigStore;
 use bevy::prelude::*;
 
@@ -12,12 +11,11 @@ pub struct HudPlugin;
 
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
-        app.init_gizmo_group::<HudGizmos>() // 1. Register group
+        app.init_gizmo_group::<HudGizmos>()
             .add_systems(
                 Startup,
                 (
-                    spawn_camera,
-                    setup_hud_gizmo_config, // 2. Assign ONLY HudGizmos to Layer 1
+                    setup_hud_gizmo_config,
                     telemetry::setup_telemetry,
                     setup_version,
                 ),
@@ -31,19 +29,7 @@ impl Plugin for HudPlugin {
 
 fn setup_hud_gizmo_config(mut config_store: ResMut<GizmoConfigStore>) {
     let (config, _) = config_store.config_mut::<HudGizmos>();
-    config.render_layers = RenderLayers::layer(1);
-}
-
-fn spawn_camera(mut commands: Commands) {
-    commands.spawn((
-        Camera2d,
-        Camera {
-            order: 10,
-            ..default()
-        },
-        IsDefaultUiCamera,
-        RenderLayers::layer(1),
-    ));
+    config.depth_bias = -1.0; // Draw on top of any 3D geometry in front of the camera
 }
 
 pub fn setup_version(mut commands: Commands) {

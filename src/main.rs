@@ -1,11 +1,12 @@
+mod camera;
 mod debug;
 mod input;
 pub mod ship;
 mod ui;
 
-use crate::ship::ShipPlugin;
-use crate::ui::HudPlugin;
 use avian3d::prelude::*;
+use bevy::light::Atmosphere;
+use bevy::light::atmosphere::ScatteringMedium;
 use bevy::prelude::*;
 use bevy_embedded_assets::{EmbeddedAssetPlugin, PluginMode};
 use bevy_inspector_egui::bevy_egui::EguiPlugin;
@@ -15,6 +16,8 @@ shadow!(build_info);
 
 fn main() {
     App::new()
+        // ClearColor black is recommended for physically-based sky rendering
+        .insert_resource(ClearColor(Color::BLACK))
         .add_plugins((
             EmbeddedAssetPlugin {
                 mode: PluginMode::ReplaceDefault,
@@ -32,60 +35,68 @@ fn main() {
             EguiPlugin::default(),
             PhysicsPlugins::default(),
             input::InputPlugin,
-            ShipPlugin,
-            HudPlugin,
+            ship::ShipPlugin,
+            ui::HudPlugin,
+            camera::ChaseCameraPlugin,
             debug::DebugPlugin,
         ))
-        .add_systems(Startup, scene.spawn())
+        .add_systems(Startup, setup_atmosphere_and_scene)
         .run();
 }
 
-/// set up a simple 3D scene
-fn scene() -> impl SceneList {
-    let planet_radius = 1000.;
-    bsn_list! [
-        (
-            #Planet
-            Mesh3d(asset_value(Sphere::new(planet_radius)))
-            MeshMaterial3d<StandardMaterial>(asset_value(Color::srgb(0.1, 0.1, 0.8)))
-            Transform {
-                translation: Vec3::new(500., planet_radius + 1000., 500.),
-                rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-            }
-            template_value(RigidBody::Static)
-            Collider::sphere(planet_radius)
-        ),
-        (
-            #Ground
-            Mesh3d(asset_value(Plane3d::new(Vec3::Y, Vec2::new(10_000., 10_000.))))
-            MeshMaterial3d<StandardMaterial>(asset_value(Color::srgb(0.1, 0.4, 0.2)))
-            Transform::from_translation(Vec3::ZERO)
-            template_value(RigidBody::Static)
-            Collider::half_space(Vec3::Y)
-        ),
-        (
-            Mesh3d(asset_value(Cuboid::new(1.0, 1.0, 1.0)))
-            MeshMaterial3d<StandardMaterial>(asset_value(Color::srgb_u8(124, 144, 255)))
-            Transform::from_xyz(-1.0, 10.0, 0.0)
-            template_value(RigidBody::Dynamic)
-            Collider::cuboid(1.0, 1.0, 1.0)
-            Mass(5.0)
-            LinearDamping(0.5)
-        ),
-        (
-            Mesh3d(asset_value(Cuboid::new(1.0, 1.0, 1.0)))
-            MeshMaterial3d<StandardMaterial>(asset_value(Color::srgb_u8(30, 144, 255)))
-            Transform::from_xyz(1.0, 10.0, 0.0)
-            template_value(RigidBody::Dynamic)
-            Collider::cuboid(1.0, 1.0, 1.0)
-            Mass(20.0)
-            LinearDamping(0.5)
-        ),
-        (
-            DirectionalLight {
-                 shadow_maps_enabled: true,
-             }
-            template_value(Transform::from_xyz(4000.0, 8000.0, 4000.0).looking_at(Vec3::ZERO, Vec3::Y))
-        )
-    ]
+fn setup_atmosphere_and_scene(
+    mut commands: Commands,
+    mut mediums: ResMut<Assets<ScatteringMedium>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    // 1. Create standard Earth-like scattering medium
+    let earth_medium = mediums.add(ScatteringMedium::earth(512, 512));
+    let earth_atmosphere = Atmosphere::earth(earth_medium);
+    let planet_radius = earth_atmosphere.inner_radius;
+
+    commands.spawn((
+        Name::new("PlanetAtmosphere"),
+        earth_atmosphere,
+        Transform::from_xyz(0.0, -planet_radius, 0.0),
+    ));
+
+    // 2. High-intensity Sun (Directional Light)
+    commands.spawn((
+        Name::new("Sun"),
+        DirectionalLight {
+            illuminance: 120_000.0,
+            shadow_maps_enabled: true,
+            ..default()
+        },
+        Transform::from_xyz(10_000.0, 15_000.0, 10_000.0).looking_at(Vec3::ZERO, Vec3::Y),
+    ));
+
+    // 3. Ground Plane
+    commands.spawn((
+        Name::new("Ground"),
+        Mesh3d(meshes.add(Plane3d::new(Vec3::Y, Vec2::new(50_000.0, 50_000.0)))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(0.1, 0.35, 0.15),
+            perceptual_roughness: 0.9,
+            ..default()
+        })),
+        Transform::from_xyz(0.0, 0.0, 0.0),
+        RigidBody::Static,
+        Collider::half_space(Vec3::Y),
+    ));
+
+    // 4. Cloud Layer
+    commands.spawn((
+        Name::new("CloudDeck"),
+        Mesh3d(meshes.add(Plane3d::new(Vec3::Y, Vec2::new(100_000.0, 100_000.0)))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgba(1.0, 1.0, 1.0, 0.6),
+            alpha_mode: AlphaMode::Blend,
+            cull_mode: None,
+            perceptual_roughness: 1.0,
+            ..default()
+        })),
+        Transform::from_xyz(0.0, 2_000.0, 0.0),
+    ));
 }

@@ -1,4 +1,5 @@
 use crate::build_info;
+use avian3d::prelude::TransformEasingSystems;
 use bevy::gizmos::config::GizmoConfigStore;
 use bevy::prelude::*;
 
@@ -22,7 +23,10 @@ impl Plugin for HudPlugin {
             )
             .add_systems(
                 Update,
-                (telemetry::update_telemetry, attitude::draw_attitude_hud),
+                (
+                    telemetry::update_telemetry,
+                    attitude::draw_attitude_hud.after(TransformEasingSystems::UpdateEnd),
+                ),
             );
     }
 }

@@ -9,6 +9,7 @@ use bevy::light::atmosphere::ScatteringMedium;
 use bevy::light::{Atmosphere, CascadeShadowConfigBuilder, FogVolume, VolumetricLight};
 use bevy::prelude::*;
 use bevy_embedded_assets::{EmbeddedAssetPlugin, PluginMode};
+use bevy_hanabi::HanabiPlugin;
 use shadow_rs::shadow;
 
 shadow!(build_info);
@@ -31,6 +32,7 @@ fn main() {
                 ..default()
             }),
             PhysicsPlugins::default(),
+            HanabiPlugin,
             input::InputPlugin,
             ship::ShipPlugin,
             ui::HudPlugin,

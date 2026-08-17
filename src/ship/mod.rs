@@ -1,21 +1,24 @@
 use crate::input::create_input_map;
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use bevy_hanabi::{EffectProperties, ParticleEffect};
 use control_surface::{ControlSurfaceActuator, ControlSurfaceOrientation};
 
 mod aero;
 mod control_surface;
 mod thrust;
+mod thrust_fx;
 
 use crate::ship::aero::FuselageDrag;
 pub use aero::{AeroSurface, FlightTelemetry};
 pub use thrust::Thrust;
+use thrust_fx::{ThrusterEffectHandle, ThrusterParticle};
 
 pub struct ShipPlugin;
 
 impl Plugin for ShipPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, (spawn_ship,))
+        app.add_systems(Startup, (thrust_fx::setup_thruster_effect, spawn_ship).chain())
             .add_systems(
                 Update,
                 (
@@ -23,6 +26,7 @@ impl Plugin for ShipPlugin {
                     control_surface::set_control_surface_targets,
                     control_surface::update_control_surfaces
                         .after(control_surface::set_control_surface_targets),
+                    thrust_fx::update_thrust_particles.after(thrust::handle_throttle),
                 ),
             )
             .add_systems(
@@ -39,7 +43,11 @@ impl Plugin for ShipPlugin {
 #[derive(Component, Clone, Default)]
 pub struct Ship;
 
-pub fn spawn_ship(mut commands: Commands, asset_server: Res<AssetServer>) {
+pub fn spawn_ship(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    effect_handle: Res<ThrusterEffectHandle>, // Pass Res by value
+) {
     info!("Spawning ship");
     let input_map = create_input_map();
     let asset_scale = 4.0;
@@ -166,5 +174,16 @@ pub fn spawn_ship(mut commands: Commands, asset_server: Res<AssetServer>) {
                 Transform::from_translation(Vec3::new(-2., -0.4, -1.5) * asset_scale)
                     .with_scale(Vec3::splat(asset_scale)),
             ));
+
+            for x_offset in [-1., 1.] {
+                // Spawn ParticleEffect here in standard ECS instead of inside bsn!
+                parent.spawn((
+                    Name::new("JetExhaust"),
+                    ThrusterParticle,
+                    ParticleEffect::new(effect_handle.0.clone()),
+                    EffectProperties::default(),
+                    Transform::from_xyz(-x_offset * 1.5, 0.0, 4.2),
+                ));
+            }
         });
 }

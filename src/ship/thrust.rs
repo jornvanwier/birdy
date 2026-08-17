@@ -35,6 +35,7 @@ impl Thrust {
             * (self.smoothness * delta_secs).min(1.0);
     }
 }
+
 pub(crate) fn handle_throttle(
     time: Res<Time>,
     mut query: Query<(&ActionState<Action>, &mut Thrust)>,

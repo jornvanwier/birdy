@@ -1,8 +1,12 @@
 use crate::ship::{Ship, Thrust};
-use avian3d::parry::glamx::{Vec3, Vec4};
+use avian3d::prelude::LinearVelocity;
 use bevy::asset::{Assets, Handle};
-use bevy::prelude::{Commands, Component, Query, Reflect, ResMut, Resource, With, default};
-use bevy_hanabi::{Attribute, ColorOverLifetimeModifier, EffectAsset, EffectProperties, EffectSpawner, ExprWriter, SetAttributeModifier, SetPositionSphereModifier, ShapeDimension, SimulationSpace, SizeOverLifetimeModifier, SpawnerSettings};
+use bevy::prelude::*;
+use bevy_hanabi::{
+    Attribute, ColorOverLifetimeModifier, EffectAsset, EffectProperties, EffectSpawner,
+    ExprWriter, SetAttributeModifier, SetPositionSphereModifier, ShapeDimension,
+    SimulationSpace, SizeOverLifetimeModifier, SpawnerSettings,
+};
 
 #[derive(Resource)]
 pub struct ThrusterEffectHandle(pub Handle<EffectAsset>);
@@ -23,15 +27,19 @@ pub fn setup_thruster_effect(mut commands: Commands, mut effects: ResMut<Assets<
     size_gradient.add_key(0.0, Vec3::splat(0.4));
     size_gradient.add_key(1.0, Vec3::splat(1.5));
 
-    // 3. Use ExprWriter to build expressions with math operator overloading
+    // 3. Use ExprWriter to build expressions with dynamic properties
     let writer = ExprWriter::new();
 
     let throttle_prop = writer.add_property("throttle", 0.0f32.into());
     let throttle_expr = writer.prop(throttle_prop);
 
+    // Dynamic world-space exhaust velocity property
+    let exhaust_vel_prop = writer.add_property("exhaust_velocity", Vec3::ZERO.into());
+    let exhaust_vel_expr = writer.prop(exhaust_vel_prop);
+
     // Lifetime scales with throttle
     let base_lifetime = writer.lit(0.35f32);
-    let lifetime = (base_lifetime * throttle_expr.clone()).expr();
+    let lifetime = (base_lifetime * throttle_expr).expr();
     let init_lifetime = SetAttributeModifier::new(Attribute::LIFETIME, lifetime);
 
     // Position jitter in the nozzle
@@ -41,11 +49,10 @@ pub fn setup_thruster_effect(mut commands: Commands, mut effects: ResMut<Assets<
         dimension: ShapeDimension::Volume,
     };
 
-    // Velocity scales with throttle (ejected backwards along local +Z)
-    let base_exhaust_speed = writer.lit(Vec3::new(0.0, 0.0, 80.0));
+    // Initial velocity uses the computed world-space exhaust velocity
     let init_vel = SetAttributeModifier::new(
         Attribute::VELOCITY,
-        (base_exhaust_speed * throttle_expr).expr(),
+        exhaust_vel_expr.expr(),
     );
 
     let effect = EffectAsset::new(
@@ -71,22 +78,31 @@ pub fn setup_thruster_effect(mut commands: Commands, mut effects: ResMut<Assets<
 }
 
 pub fn update_thrust_particles(
-    ship_query: Query<&Thrust, With<Ship>>,
+    ship_query: Query<(&Thrust, &GlobalTransform, Option<&LinearVelocity>), With<Ship>>,
     mut particle_query: Query<(
         &mut EffectProperties,
         Option<&mut EffectSpawner>,
     ), With<ThrusterParticle>>,
 ) {
-    let Ok(thrust) = ship_query.single() else {
+    let Ok((thrust, ship_transform, maybe_lin_vel)) = ship_query.single() else {
         return;
     };
     let throttle = thrust.current_throttle;
+    let ship_vel = maybe_lin_vel.map(|v| v.0).unwrap_or(Vec3::ZERO);
+
+    // Backwards direction relative to the ship in world space (+Z local)
+    let back_dir = ship_transform.back();
+
+    // World velocity of exhaust particles:
+    // Ship momentum + backward ejection speed
+    let exhaust_vel = ship_vel + back_dir * (80.0 * throttle);
 
     for (mut properties, maybe_spawner) in particle_query.iter_mut() {
-        // 1. Pass the dynamic throttle property to the GPU compute shader
+        // 1. Pass properties to the GPU compute shader
         properties.set("throttle", throttle.into());
+        properties.set("exhaust_velocity", exhaust_vel.into());
 
-        // 2. Adjust emission rate once Hanabi initializes the spawner
+        // 2. Adjust emission rate based on throttle
         if let Some(mut spawner) = maybe_spawner {
             if throttle > 0.01 {
                 spawner.active = true;

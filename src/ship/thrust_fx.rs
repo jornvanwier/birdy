@@ -1,12 +1,7 @@
 use crate::ship::{Ship, Thrust};
-use avian3d::prelude::LinearVelocity;
-use bevy::asset::{Assets, Handle};
+use avian3d::prelude::*;
 use bevy::prelude::*;
-use bevy_hanabi::{
-    Attribute, ColorOverLifetimeModifier, EffectAsset, EffectProperties, EffectSpawner,
-    ExprWriter, SetAttributeModifier, SetPositionSphereModifier, ShapeDimension,
-    SimulationSpace, SizeOverLifetimeModifier, SpawnerSettings,
-};
+use bevy_hanabi::prelude::*;
 
 #[derive(Resource)]
 pub struct ThrusterEffectHandle(pub Handle<EffectAsset>);
@@ -50,39 +45,32 @@ pub fn setup_thruster_effect(mut commands: Commands, mut effects: ResMut<Assets<
     };
 
     // Initial velocity uses the computed world-space exhaust velocity
-    let init_vel = SetAttributeModifier::new(
-        Attribute::VELOCITY,
-        exhaust_vel_expr.expr(),
-    );
+    let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, exhaust_vel_expr.expr());
 
-    let effect = EffectAsset::new(
-        8192,
-        SpawnerSettings::rate(400.0.into()),
-        writer.finish(),
-    )
-    .with_name("jet_thruster")
-    .with_simulation_space(SimulationSpace::Global)
-    .init(init_pos)
-    .init(init_lifetime)
-    .init(init_vel)
-    .render(ColorOverLifetimeModifier {
-        gradient: color_gradient,
-        ..default()
-    })
-    .render(SizeOverLifetimeModifier {
-        gradient: size_gradient,
-        screen_space_size: false,
-    });
+    let effect = EffectAsset::new(8192, SpawnerSettings::rate(400.0.into()), writer.finish())
+        .with_name("jet_thruster")
+        .with_simulation_space(SimulationSpace::Global)
+        .init(init_pos)
+        .init(init_lifetime)
+        .init(init_vel)
+        .render(ColorOverLifetimeModifier {
+            gradient: color_gradient,
+            ..default()
+        })
+        .render(SizeOverLifetimeModifier {
+            gradient: size_gradient,
+            screen_space_size: false,
+        });
 
     commands.insert_resource(ThrusterEffectHandle(effects.add(effect)));
 }
 
 pub fn update_thrust_particles(
     ship_query: Query<(&Thrust, &GlobalTransform, Option<&LinearVelocity>), With<Ship>>,
-    mut particle_query: Query<(
-        &mut EffectProperties,
-        Option<&mut EffectSpawner>,
-    ), With<ThrusterParticle>>,
+    mut particle_query: Query<
+        (&mut EffectProperties, Option<&mut EffectSpawner>),
+        With<ThrusterParticle>,
+    >,
 ) {
     let Ok((thrust, ship_transform, maybe_lin_vel)) = ship_query.single() else {
         return;

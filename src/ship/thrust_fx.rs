@@ -47,12 +47,21 @@ pub fn setup_thruster_effect(mut commands: Commands, mut effects: ResMut<Assets<
     // Initial velocity uses the computed world-space exhaust velocity
     let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, exhaust_vel_expr.expr());
 
+    let rotation = (writer.rand(ScalarType::Float) * writer.lit(std::f32::consts::TAU)).expr();
+    let init_rotation = SetAttributeModifier::new(Attribute::F32_0, rotation);
+    let rotation_attr = writer.attr(Attribute::F32_0).expr();
+
     let effect = EffectAsset::new(8192, SpawnerSettings::rate(400.0.into()), writer.finish())
         .with_name("jet_thruster")
         .with_simulation_space(SimulationSpace::Global)
         .init(init_pos)
         .init(init_lifetime)
+        .init(init_rotation)
         .init(init_vel)
+        .render(OrientModifier {
+            mode: OrientMode::FaceCameraPosition,
+            rotation: Some(rotation_attr),
+        })
         .render(ColorOverLifetimeModifier {
             gradient: color_gradient,
             ..default()

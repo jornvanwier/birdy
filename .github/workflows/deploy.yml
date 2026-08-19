@@ -23,11 +23,6 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
 
-      - name: Install System Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang lld mold
-
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:

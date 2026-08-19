@@ -68,11 +68,9 @@ pub fn calculate_aero_surface_forces(
             let local_v = surf_rot.inverse() * point_velocity;
             // local_v.z is backwards (-forward), local_v.y is normal (up)
             let raw_aoa = (-local_v.y).atan2(-local_v.z);
-            let aoa = raw_aoa.clamp(-surface.stall_angle, surface.stall_angle);
 
-            // Lift and Drag coefficients
-            let cl = aoa * surface.lift_slope;
-            let cd = surface.drag_0 + surface.induced_drag_coeff * cl.powi(2);
+            // --- SMOOTH STALL & AERODYNAMIC COEFFICIENTS ---
+            let (cl, cd) = calculate_aerodynamic_coefficients(surface, raw_aoa);
 
             // Force Magnitudes
             let lift_mag = dynamic_pressure * surface.area * cl;
@@ -96,6 +94,33 @@ pub fn calculate_aero_surface_forces(
             total_drag += drag_force;
         }
     }
+}
+
+/// Computes C_L and C_D across the full range of AoA with smooth stall transition
+fn calculate_aerodynamic_coefficients(surface: &AeroSurface, aoa: f32) -> (f32, f32) {
+    // 1. Stall transition width (~4.5° in radians)
+    const STALL_WIDTH: f32 = 0.08;
+    // Flat plate bluff drag coefficient in full separation (~1.4 - 1.6)
+    const CD_POST_STALL_PLATE: f32 = 1.5;
+
+    // 2. Separation factor (sigmoid curve: 0.0 attached -> 0.5 at stall angle -> 1.0 detached)
+    let separation = 1.0 / (1.0 + (-(aoa.abs() - surface.stall_angle) / STALL_WIDTH).exp());
+
+    // 3. Attached flow regime (linear lift + induced drag)
+    let cl_attached = surface.lift_slope * aoa;
+    let cd_attached = surface.drag_0 + surface.induced_drag_coeff * cl_attached.powi(2);
+
+    // 4. Stalled / fully separated flow regime (Viterna flat-plate model)
+    // C_L,separated = C_d,plate * sin(AoA) * cos(AoA) = 0.5 * C_d,plate * sin(2*AoA)
+    // C_D,separated = C_d0 + C_d,plate * sin^2(AoA)
+    let cl_separated = 0.5 * CD_POST_STALL_PLATE * (2.0 * aoa).sin();
+    let cd_separated = surface.drag_0 + CD_POST_STALL_PLATE * aoa.sin().powi(2);
+
+    // 5. Smoothly blend both regimes
+    let cl = (1.0 - separation) * cl_attached + separation * cl_separated;
+    let cd = (1.0 - separation) * cd_attached + separation * cd_separated;
+
+    (cl, cd)
 }
 
 fn calculate_dynamic_pressure(air_density: f32, speed: f32) -> f32 {
@@ -127,9 +152,7 @@ impl Default for FuselageDrag {
     }
 }
 
-pub fn calculate_fuselage_drag(
-    mut ships: Query<(Forces, &GlobalTransform, &FuselageDrag)>,
-) {
+pub fn calculate_fuselage_drag(mut ships: Query<(Forces, &GlobalTransform, &FuselageDrag)>) {
     let air_density = 1.225; // kg/m^3
 
     for (mut forces, transform, fuselage) in ships.iter_mut() {
@@ -141,8 +164,6 @@ pub fn calculate_fuselage_drag(
         let local_v = rotation.inverse() * lin_vel;
 
         // 2. Compute dynamic pressure per axis: 0.5 * rho * v * |v|
-        // Retaining the sign ensures drag always opposes motion along that axis
-        // TODO can we use calculate_dynamic_pressure?
         let q_x = 0.5 * air_density * local_v.x * local_v.x.abs();
         let q_y = 0.5 * air_density * local_v.y * local_v.y.abs();
         let q_z = 0.5 * air_density * local_v.z * local_v.z.abs();

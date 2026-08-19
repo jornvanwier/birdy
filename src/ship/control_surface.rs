@@ -5,13 +5,19 @@ use avian3d::prelude::AngularVelocity;
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
+#[derive(Component, Reflect, Eq, PartialEq, Copy, Clone, Default)]
+pub enum ControlSurfacePosition {
+    #[default]
+    Left,
+    Right,
+}
+
 #[derive(Component, Reflect, Clone, Default)]
 pub enum ControlSurfaceOrientation {
     #[default]
     Pitch,
-    Roll {
-        negate: bool,
-    },
+    Roll(ControlSurfacePosition),
+    RollPitch(ControlSurfacePosition),
     Yaw,
 }
 
@@ -50,12 +56,21 @@ pub fn set_control_surface_targets(
         for child in children.iter() {
             if let Ok((orientation, mut actuator)) = actuators.get_mut(child) {
                 actuator.target_deflection = match *orientation {
-                    ControlSurfaceOrientation::Pitch => pitch_cmd.clamp(-1.0, 1.0),
-                    ControlSurfaceOrientation::Roll { negate } => {
-                        (roll_cmd * if negate { -1. } else { 1. }).clamp(-1.0, 1.0)
+                    ControlSurfaceOrientation::Pitch => pitch_cmd,
+                    ControlSurfaceOrientation::Roll(side) => {
+                        roll_cmd
+                            * match side {
+                                ControlSurfacePosition::Left => 1.,
+                                ControlSurfacePosition::Right => -1.,
+                            }
                     }
-                    ControlSurfaceOrientation::Yaw => yaw_cmd.clamp(-1.0, 1.0),
-                };
+                    ControlSurfaceOrientation::RollPitch(side) => match side {
+                        ControlSurfacePosition::Left => pitch_cmd + roll_cmd,
+                        ControlSurfacePosition::Right => pitch_cmd - roll_cmd,
+                    },
+                    ControlSurfaceOrientation::Yaw => yaw_cmd,
+                }
+                .clamp(-1.0, 1.0);
             }
         }
     }

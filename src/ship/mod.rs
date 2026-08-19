@@ -112,7 +112,6 @@ pub fn spawn_ship(
             Visibility::default()
             FlightTelemetry::default()
             template_value(LinearVelocity(Vec3::NEG_Z * 200.0))
-            Thrust::new(1.0, 145_000., 0.55, 6.0)
             Transform::from_xyz(0.0, 1500.0, 10.0)
             template_value(RigidBody::Dynamic)
             Collider::cuboid(10.0, 3.5, 15.0)
@@ -229,6 +228,7 @@ pub fn spawn_ship(
 
             for x_offset in [-1., 1.] {
                 parent.spawn((
+                    Thrust::new(1.0, 145_000. / 2., 0.55, 6.0),
                     Name::new("JetExhaust"),
                     ThrusterParticle,
                     ParticleEffect::new(effect_handle.0.clone()),

@@ -75,26 +75,35 @@ pub fn setup_thruster_effect(mut commands: Commands, mut effects: ResMut<Assets<
 }
 
 pub fn update_thrust_particles(
-    ship_query: Query<(&Thrust, &GlobalTransform, Option<&LinearVelocity>), With<Ship>>,
+    ship_query: Query<Option<&LinearVelocity>>,
     mut particle_query: Query<
-        (&mut EffectProperties, Option<&mut EffectSpawner>),
+        (
+            &Thrust,
+            &GlobalTransform,
+            &ChildOf,
+            &mut EffectProperties,
+            Option<&mut EffectSpawner>,
+        ),
         With<ThrusterParticle>,
     >,
 ) {
-    let Ok((thrust, ship_transform, maybe_lin_vel)) = ship_query.single() else {
-        return;
-    };
-    let throttle = thrust.current_throttle;
-    let ship_vel = maybe_lin_vel.map(|v| v.0).unwrap_or(Vec3::ZERO);
+    for (thrust, thruster_transform, child_of, mut properties, maybe_spawner) in
+        particle_query.iter_mut()
+    {
+        // Get linear velocity from parent ship entity
+        let ship_vel = ship_query
+            .get(child_of.parent())
+            .ok()
+            .flatten()
+            .map(|v| v.0)
+            .unwrap_or(Vec3::ZERO);
 
-    // Backwards direction relative to the ship in world space (+Z local)
-    let back_dir = ship_transform.back();
+        let throttle = thrust.current_throttle;
 
-    // World velocity of exhaust particles:
-    // Ship momentum + backward ejection speed
-    let exhaust_vel = ship_vel + back_dir * (80.0 * throttle);
+        // Backward exhaust vector in world space (+Z local)
+        let back_dir = *thruster_transform.back();
+        let exhaust_vel = ship_vel + back_dir * (80.0 * throttle);
 
-    for (mut properties, maybe_spawner) in particle_query.iter_mut() {
         // 1. Pass properties to the GPU compute shader
         properties.set("throttle", throttle.into());
         properties.set("exhaust_velocity", exhaust_vel.into());

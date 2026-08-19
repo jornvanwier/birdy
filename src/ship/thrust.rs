@@ -38,28 +38,41 @@ impl Thrust {
 
 pub(crate) fn handle_throttle(
     time: Res<Time>,
-    mut query: Query<(&ActionState<Action>, &mut Thrust)>,
+    action_query: Query<&ActionState<Action>>,
+    mut thrust_query: Query<(&ChildOf, &mut Thrust)>,
 ) {
-    for (action_state, mut throttle) in query.iter_mut() {
-        let delta_t = time.delta_secs();
-        if action_state.pressed(&Action::FullThrottle) {
-            throttle.target_throttle = 1.;
-        } else if action_state.pressed(&Action::CutThrottle) {
-            throttle.target_throttle = 0.;
-        } else {
-            let throttle_dir = action_state.value(&Action::Throttle);
-            throttle.adjust_target_delta(throttle_dir, delta_t);
+    let delta_t = time.delta_secs();
+
+    for (child_of, mut throttle) in thrust_query.iter_mut() {
+        // Look up input state on the parent entity using ChildOf
+        if let Ok(action_state) = action_query.get(child_of.parent()) {
+            if action_state.pressed(&Action::FullThrottle) {
+                throttle.target_throttle = 1.;
+            } else if action_state.pressed(&Action::CutThrottle) {
+                throttle.target_throttle = 0.;
+            } else {
+                let throttle_dir = action_state.value(&Action::Throttle);
+                throttle.adjust_target_delta(throttle_dir, delta_t);
+            }
         }
 
         throttle.update(delta_t);
     }
 }
 
-pub fn apply_thrust(mut query: Query<(Forces, &Transform, &Thrust)>) {
-    for (mut forces, transform, thrust) in query.iter_mut() {
-        let magnitude = thrust.current_throttle * thrust.peak_thrust;
-        let direction = transform.forward();
+pub fn apply_thrust(
+    thruster_query: Query<(&Thrust, &GlobalTransform, &ChildOf)>,
+    mut forces_query: Query<Forces>,
+) {
+    for (thrust, global_transform, child_of) in thruster_query.iter() {
+        if let Ok(mut forces) = forces_query.get_mut(child_of.parent()) {
+            let magnitude = thrust.current_throttle * thrust.peak_thrust;
+            let direction = *global_transform.forward();
 
-        forces.apply_force(direction * magnitude);
+            forces.apply_force_at_point(
+                direction * magnitude,
+                global_transform.compute_transform().translation,
+            );
+        }
     }
 }

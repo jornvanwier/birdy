@@ -17,29 +17,50 @@ use thrust_fx::{ThrusterEffectHandle, ThrusterParticle};
 
 pub struct ShipPlugin;
 
+/// Explicit simulation stages for ordering and parallelization
+#[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
+pub enum FlightSet {
+    /// Stage 1: Process inputs, SAS damping, engine spooling, and actuator deflections
+    Controls,
+    /// Stage 2: Calculate and apply aero forces, drag, and engine thrust
+    Forces,
+}
+
 impl Plugin for ShipPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
+        // 1. Configure stage ordering in FixedUpdate
+        app.configure_sets(
+            FixedUpdate,
+            (FlightSet::Controls, FlightSet::Forces).chain(),
+        )
+        .add_systems(
             Startup,
             (thrust_fx::setup_thruster_effect, spawn_ship).chain(),
         )
+        .add_systems(Update, (thrust_fx::update_thrust_particles,))
         .add_systems(
-            Update,
+            FixedUpdate,
             (
+                // Control surface chain (set -> update)
+                (
+                    control_surface::set_control_surface_targets,
+                    control_surface::update_control_surfaces,
+                )
+                    .chain(),
+                // Throttle spooling runs in parallel with control surface chain
                 thrust::handle_throttle,
-                control_surface::set_control_surface_targets,
-                control_surface::update_control_surfaces
-                    .after(control_surface::set_control_surface_targets),
-                thrust_fx::update_thrust_particles.after(thrust::handle_throttle),
-            ),
+            )
+                .in_set(FlightSet::Controls),
         )
+        // 4. Stage 2: Apply forces
         .add_systems(
             FixedUpdate,
             (
                 aero::calculate_aero_surface_forces,
                 aero::calculate_fuselage_drag,
                 thrust::apply_thrust,
-            ),
+            )
+                .in_set(FlightSet::Forces),
         );
     }
 }
@@ -62,7 +83,7 @@ pub fn spawn_ship(
         lift_slope: 3.8,
         drag_0: 0.018,
         induced_drag_coeff: 0.14,
-        stall_angle: f32::to_radians(24.0), // ~24° vortex-delayed stall
+        stall_angle: f32::to_radians(24.0),
     };
 
     // All-moving horizontal taileron aero profile
@@ -90,14 +111,12 @@ pub fn spawn_ship(
             Ship
             Visibility::default()
             FlightTelemetry::default()
-            // Initial combat cruise speed: 200 m/s (~390 knots / Mach 0.6)
             template_value(LinearVelocity(Vec3::NEG_Z * 200.0))
-            // Dry thrust: 80 kN / Max Afterburner: 145 kN
             Thrust::new(1.0, 145_000., 0.55, 6.0)
             Transform::from_xyz(0.0, 1500.0, 10.0)
             template_value(RigidBody::Dynamic)
             Collider::cuboid(10.0, 3.5, 15.0)
-            Mass(11_000.0) // 11 metric tonnes combat weight
+            Mass(11_000.0)
             TransformInterpolation
 
             Children [
@@ -109,7 +128,7 @@ pub fn spawn_ship(
                     }
                 ),
 
-                // --- MAIN WINGS (Centered near CG for high pitch agility) ---
+                // --- MAIN WINGS ---
                 (
                     #LeftWing
                     template_value(wing_aero)
@@ -125,7 +144,7 @@ pub fn spawn_ship(
                     Transform::from_xyz(2.8, 0.0, -0.2)
                 ),
 
-                // --- FLAPERONS / AILERONS (High-speed roll control) ---
+                // --- FLAPERONS / AILERONS ---
                 (
                     #LeftAileron
                     template_value(AeroSurface { area: 2.5, ..wing_aero })
@@ -151,7 +170,7 @@ pub fn spawn_ship(
                     Transform::from_xyz(4.5, 0.0, 0.8)
                 ),
 
-                // --- ALL-MOVING HORIZONTAL TAILERONS (Massive pitch + roll authority) ---
+                // --- ALL-MOVING HORIZONTAL TAILERONS ---
                 (
                     #LeftTaileron
                     template_value(tail_aero)

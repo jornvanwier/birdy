@@ -12,8 +12,11 @@ leafwing-input-manager = "0.21.0"
 shadow-rs = { version = "2.0.0", default-features = false }
 virtual_joystick = "2.8.0"
 bevy_hanabi = { version = "0.19", default-features = false, features = ["3d"] }
+bevy_rand = { version = "0.15.2", features = ["wyrand"] }
+rand = "0.10.2"
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
+[target.'cfg(all(target_family = "wasm", any(target_os = "unknown", target_os = "none")))'.dependencies]
+bevy_rand = { version = "0.15.2", features = ["wasm_js"] }
 web-sys = { version = "0.3", features = ["Window", "Navigator"] }
 
 [build-dependencies]

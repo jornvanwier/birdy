@@ -1510,10 +1510,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_prng"
+version = "0.15.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25ea191262e57fdec4f33678697cafb7fcdcdb0dba26863ed3405e3511d06c3a"
+dependencies = [
+ "bevy_ecs",
+ "bevy_reflect",
+ "chacha20",
+ "getrandom 0.4.3",
+ "rand_core",
+ "rand_pcg",
+ "rand_xoshiro",
+ "serde",
+ "wyrand",
+]
+
+[[package]]
 name = "bevy_ptr"
 version = "0.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1974de4b140f102fded747229ff4a61921acec07f02f0d1dcdadfe9ce177d0ff"
+
+[[package]]
+name = "bevy_rand"
+version = "0.15.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4cfdf18abf383e6bb2943d28c8c04e74abd63da492ad057db34ab07cdcfe536d"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_prng",
+ "bevy_reflect",
+ "getrandom 0.4.3",
+ "rand_core",
+]
 
 [[package]]
 name = "bevy_reflect"
@@ -2044,7 +2075,9 @@ dependencies = [
  "bevy-inspector-egui",
  "bevy_embedded_assets",
  "bevy_hanabi",
+ "bevy_rand",
  "leafwing-input-manager",
+ "rand",
  "shadow-rs",
  "virtual_joystick",
  "web-sys",
@@ -5405,6 +5438,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "caa0f4137e1c0a72f4c651489402276c8e8e1cf081f3b0ba156d2cbeef09e86a"
 dependencies = [
  "rand_core",
+ "serde",
+]
+
+[[package]]
+name = "rand_xoshiro"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "662effc7698e08ea324d3acccf8d9d7f7bf79b9785e270a174ea36e56900c91d"
+dependencies = [
+ "rand_core",
+ "serde",
 ]
 
 [[package]]
@@ -7372,6 +7416,16 @@ name = "writeable"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ffae5123b2d3fc086436f8834ae3ab053a283cfac8fe0a0b8eaae044768a4c4"
+
+[[package]]
+name = "wyrand"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5484c3d24f0e2e117d30bce6f8792e193be33e2b6e0b3f8945ccf265c56c6da"
+dependencies = [
+ "rand_core",
+ "serde",
+]
 
 [[package]]
 name = "x11-dl"

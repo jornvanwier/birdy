@@ -1,4 +1,5 @@
 mod camera;
+mod clouds;
 mod debug;
 mod input;
 mod ship;
@@ -6,10 +7,11 @@ mod ui;
 
 use avian3d::prelude::*;
 use bevy::light::atmosphere::ScatteringMedium;
-use bevy::light::{Atmosphere, CascadeShadowConfigBuilder, FogVolume, VolumetricLight};
+use bevy::light::{Atmosphere, CascadeShadowConfigBuilder, VolumetricLight};
 use bevy::prelude::*;
 use bevy_embedded_assets::{EmbeddedAssetPlugin, PluginMode};
 use bevy_hanabi::HanabiPlugin;
+use bevy_rand::prelude::*;
 use shadow_rs::shadow;
 
 shadow!(build_info);
@@ -31,12 +33,14 @@ fn main() {
                 }),
                 ..default()
             }),
+            EntropyPlugin::<WyRand>::default(),
             PhysicsPlugins::default(),
             HanabiPlugin,
             input::InputPlugin,
             ship::ShipPlugin,
             ui::HudPlugin,
             camera::ChaseCameraPlugin,
+            clouds::CloudsPlugin,
             debug::DebugPlugin,
         ))
         .add_systems(Startup, setup_atmosphere_and_scene)
@@ -60,7 +64,7 @@ fn setup_atmosphere_and_scene(
         Transform::from_xyz(0.0, -planet_radius, 0.0),
     ));
 
-    // 2. High-intensity Sun with extended shadow cascades
+    // 2. Sun with extended shadow cascades
     commands.spawn((
         Name::new("Sun"),
         DirectionalLight {
@@ -69,11 +73,10 @@ fn setup_atmosphere_and_scene(
             ..default()
         },
         VolumetricLight,
-        // Extend shadow distance so high/distant clouds receive sunlight
         CascadeShadowConfigBuilder {
             num_cascades: 4,
             minimum_distance: 0.5,
-            maximum_distance: 10_000.0, // 10 km shadow distance
+            maximum_distance: 10_000.0,
             first_cascade_far_bound: 100.0,
             ..default()
         }
@@ -94,28 +97,4 @@ fn setup_atmosphere_and_scene(
         RigidBody::Static,
         Collider::half_space(Vec3::Y),
     ));
-
-    // 4. Volumetric Clouds (Spawn multiple distinct cloud patches or bank)
-    // In src/main.rs
-    let cloud_positions = [
-        Vec3::new(0.0, 800.0, -2_000.0),
-        Vec3::new(2_500.0, 1_000.0, -4_000.0),
-        Vec3::new(-2_000.0, 700.0, -3_000.0),
-    ];
-
-    for (i, pos) in cloud_positions.into_iter().enumerate() {
-        commands.spawn((
-            Name::new(format!("VolumetricCloud_{i}")),
-            FogVolume {
-                fog_color: Color::srgb(1.0, 1.0, 1.0),
-                // Calibrated for ~2.5 km volume radius (peak brightness range: 0.0004 - 0.0008)
-                density_factor: 0.0006,
-                scattering: 0.3,
-                absorption: 0.3,            // Pure scattering (no dark soot)
-                scattering_asymmetry: 0.5, // Near-isotropic: bright white from any viewing angle
-                ..default()
-            },
-            Transform::from_translation(pos).with_scale(Vec3::new(2_500.0, 300.0, 2_500.0)),
-        ));
-    }
 }

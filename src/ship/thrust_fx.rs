@@ -1,4 +1,4 @@
-use crate::ship::{Ship, Thrust};
+use crate::ship::Thrust;
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_hanabi::prelude::*;

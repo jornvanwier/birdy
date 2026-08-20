@@ -28,14 +28,17 @@ pub struct AeroSurface {
     pub stall_angle: f32,
 }
 
+/// Calculate aero forces using Transform, not GlobalTransform,
+/// as GlobalTransform is only propagated on Update, not FixedUpdate
 pub fn calculate_aero_surface_forces(
-    mut ships: Query<(Forces, &GlobalTransform, &Children)>,
-    surfaces: Query<(&AeroSurface, &GlobalTransform)>,
+    mut ships: Query<(Forces, &Transform, &Children)>,
+    surfaces: Query<(&AeroSurface, &Transform)>,
 ) {
-    let air_density = 1.225; // kg/m^3 (sea level standard)
+    let air_density = 1.225; // kg/m^3
 
     for (mut forces, ship_transform, children) in ships.iter_mut() {
-        let ship_pos = ship_transform.translation();
+        let ship_pos = ship_transform.translation;
+        let ship_rot = ship_transform.rotation;
         let ship_lin_vel = forces.linear_velocity();
         let ship_ang_vel = forces.angular_velocity();
 
@@ -43,16 +46,16 @@ pub fn calculate_aero_surface_forces(
         let mut total_drag = Vec3::ZERO;
 
         for child in children.iter() {
-            let Ok((surface, surface_transform)) = surfaces.get(child) else {
+            let Ok((surface, child_transform)) = surfaces.get(child) else {
                 continue;
             };
 
-            let surf_pos = surface_transform.translation();
-            let surf_rot = surface_transform.compute_transform().rotation;
+            // Calculate instantaneous world position & rotation directly in-place:
+            let surf_pos = ship_pos + ship_rot * child_transform.translation;
+            let surf_rot = ship_rot * child_transform.rotation;
             let surf_up = surf_rot * Vec3::Y; // Lift direction / normal to wing
 
-            // Calculate local velocity of this surface through the air
-            // v_point = v_linear + omega x r
+            // Local velocity of this surface through the air: v_point = v_linear + omega x r
             let arm = surf_pos - ship_pos;
             let point_velocity = ship_lin_vel + ship_ang_vel.cross(arm);
             let speed = point_velocity.length();
@@ -66,10 +69,9 @@ pub fn calculate_aero_surface_forces(
 
             // Angle of Attack (AoA) in the surface's local pitch plane
             let local_v = surf_rot.inverse() * point_velocity;
-            // local_v.z is backwards (-forward), local_v.y is normal (up)
             let raw_aoa = (-local_v.y).atan2(-local_v.z);
 
-            // --- SMOOTH STALL & AERODYNAMIC COEFFICIENTS ---
+            // Aerodynamic Coefficients
             let (cl, cd) = calculate_aerodynamic_coefficients(surface, raw_aoa);
 
             // Force Magnitudes
@@ -77,16 +79,12 @@ pub fn calculate_aero_surface_forces(
             let drag_mag = dynamic_pressure * surface.area * cd;
 
             // Force Vectors
-            // Lift acts perpendicular to relative velocity in the chord-normal plane
             let lift_dir = (surf_up - vel_dir * surf_up.dot(vel_dir)).normalize_or_zero();
             let lift_force = lift_dir * lift_mag;
-
-            // Drag acts opposite to velocity
             let drag_force = -vel_dir * drag_mag;
 
             let total_surface_force = lift_force + drag_force;
 
-            // Apply to parent rigid body at world offset
             forces.apply_force(total_surface_force);
             forces.apply_torque(arm.cross(total_surface_force));
 
@@ -95,7 +93,6 @@ pub fn calculate_aero_surface_forces(
         }
     }
 }
-
 /// Computes C_L and C_D across the full range of AoA with smooth stall transition
 fn calculate_aerodynamic_coefficients(surface: &AeroSurface, aoa: f32) -> (f32, f32) {
     // 1. Stall transition width (~4.5° in radians)

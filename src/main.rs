@@ -18,6 +18,7 @@ shadow!(build_info);
 
 fn main() {
     App::new()
+        .insert_resource(Time::<Fixed>::from_hz(120.0))
         .insert_resource(ClearColor(Color::BLACK))
         .add_plugins((
             EmbeddedAssetPlugin {

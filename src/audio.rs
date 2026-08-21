@@ -87,11 +87,11 @@ fn generate_rotary_shot_variant(
 ) -> Box<dyn AudioUnit> {
     // A. Supersonic Muzzle Crack: Ultra-short initial snap (0-8ms)
     let crack_env = envelope(move |t: f64| (-t * 160.0).exp());
-    let crack = (white() | constant(crack_cutoff) | constant(2.0)) >> bandpass() * crack_env * 2.6;
+    let crack = (white() | constant(crack_cutoff) | constant(2.0)) >> (bandpass() * crack_env * 2.6);
 
     // B. Concussive Detonation Body: Low-mid shockwave punch
     let body_env = envelope(move |t: f64| (-t * decay_rate).exp());
-    let body = (pink() | constant(body_cutoff) | constant(2.2)) >> bandpass() * body_env * 2.2;
+    let body = (pink() | constant(body_cutoff) | constant(2.2)) >> (bandpass() * body_env * 2.2);
 
     // C. Heavy Mechanical Punch: Fast pitch drop into sub-bass thump
     let pitch_env = envelope(move |t: f64| pitch_start * (-t * 110.0).exp() + 35.0);
@@ -125,9 +125,9 @@ fn generate_rotary_spool_loop() -> Box<dyn AudioUnit> {
 
 /// Deep combustion & turbine exhaust loop
 fn generate_thruster_base_loop() -> Box<dyn AudioUnit> {
-    let sub_rumble = (pink() | constant(90.0) | constant(0.9)) >> lowpass() * 1.8;
-    let mid_roar = (pink() | constant(380.0) | constant(1.4)) >> bandpass() * 1.2;
-    let exhaust_hiss = (white() | constant(2200.0) | constant(1.0)) >> bandpass() * 0.35;
+    let sub_rumble = (pink() | constant(90.0) | constant(0.9)) >> (lowpass() * 1.8);
+    let mid_roar = (pink() | constant(380.0) | constant(1.4)) >> (bandpass() * 1.2);
+    let exhaust_hiss = (white() | constant(2200.0) | constant(1.0)) >> (bandpass() * 0.35);
 
     let engine_mix = (sub_rumble + mid_roar + exhaust_hiss) * 1.3;
     Box::new((engine_mix >> shape(Tanh(1.0)) >> declick()) * 0.8)

@@ -82,12 +82,12 @@ pub fn update_thrust_particles(
             &GlobalTransform,
             &ChildOf,
             &mut EffectProperties,
-            Option<&mut EffectSpawner>,
+            &mut EffectSpawner,
         ),
         With<ThrusterParticle>,
     >,
 ) {
-    for (thrust, thruster_transform, child_of, mut properties, maybe_spawner) in
+    for (thrust, thruster_transform, child_of, mut properties, mut spawner) in
         particle_query.iter_mut()
     {
         // Get linear velocity from parent ship entity
@@ -109,13 +109,11 @@ pub fn update_thrust_particles(
         properties.set("exhaust_velocity", exhaust_vel.into());
 
         // 2. Adjust emission rate based on throttle
-        if let Some(mut spawner) = maybe_spawner {
-            if throttle > 0.01 {
-                spawner.active = true;
-                spawner.settings = SpawnerSettings::rate((throttle * 600.0).into());
-            } else {
-                spawner.active = false;
-            }
+        if throttle > 0.01 {
+            spawner.active = true;
+            spawner.settings = SpawnerSettings::rate((throttle * 600.0).into());
+        } else {
+            spawner.active = false;
         }
     }
 }

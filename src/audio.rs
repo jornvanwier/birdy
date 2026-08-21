@@ -199,6 +199,7 @@ fn setup_audio_assets(mut commands: Commands, mut audio_assets: ResMut<Assets<Au
 fn update_thruster_audio(
     thrust_query: Query<&Thrust>,
     mut audio_query: Query<&mut AudioSink, With<ThrusterAudioSink>>,
+    global_volume: Res<GlobalVolume>,
 ) {
     let max_throttle = thrust_query
         .iter()
@@ -208,7 +209,7 @@ fn update_thruster_audio(
 
     for mut sink in &mut audio_query {
         sink.set_speed(0.85 + max_throttle * 0.45);
-        sink.set_volume(Volume::Linear(0.02 + max_throttle * 0.3));
+        sink.set_volume(Volume::Linear(0.02 + max_throttle * 0.3) * global_volume.volume);
     }
 }
 
@@ -216,6 +217,7 @@ fn update_thruster_audio(
 fn update_rotary_spool_audio(
     gun_query: Query<&RotaryGun>,
     mut spool_query: Query<&mut AudioSink, With<RotarySpoolAudioSink>>,
+    global_volume: Res<GlobalVolume>,
 ) {
     let current_spool = gun_query
         .iter()
@@ -228,8 +230,8 @@ fn update_rotary_spool_audio(
             // Tighter pitch range (0.75x to 1.30x) to eliminate discrete resampling chirps
             sink.set_speed(0.75 + current_spool * 0.55);
 
-            // Smooth linear volume fade (reaches up to 0.45 so it supports, rather than overpowers, gunfire)
-            sink.set_volume(Volume::Linear(current_spool * 0.45));
+            // Smooth linear volume fade
+            sink.set_volume(Volume::Linear(current_spool * 0.5) * global_volume.volume);
         } else {
             sink.set_volume(Volume::SILENT);
         }
@@ -243,10 +245,6 @@ fn on_fire_gun_event(
     sound_bank: Res<SoundBank>,
     mut rng: Single<&mut WyRand, With<GlobalRng>>,
 ) {
-    if sound_bank.rotary_shots.is_empty() {
-        return;
-    }
-
     let shot_handle = sound_bank
         .rotary_shots
         .choose(&mut rng)

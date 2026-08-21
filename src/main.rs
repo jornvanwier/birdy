@@ -1,12 +1,13 @@
+mod audio;
 mod camera;
 mod clouds;
 mod debug;
 mod input;
 mod ship;
 mod ui;
-mod audio;
 
 use avian3d::prelude::*;
+use bevy::audio::{AudioPlugin, Volume};
 use bevy::light::atmosphere::ScatteringMedium;
 use bevy::light::{Atmosphere, CascadeShadowConfigBuilder, VolumetricLight};
 use bevy::prelude::*;
@@ -33,6 +34,10 @@ fn main() {
                     prevent_default_event_handling: true,
                     ..default()
                 }),
+
+                ..default()
+            }).set(AudioPlugin {
+                global_volume: GlobalVolume::new(Volume::Linear(0.1)),
                 ..default()
             }),
             EntropyPlugin::<WyRand>::default(),

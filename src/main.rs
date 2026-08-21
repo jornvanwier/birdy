@@ -4,6 +4,7 @@ mod debug;
 mod input;
 mod ship;
 mod ui;
+mod audio;
 
 use avian3d::prelude::*;
 use bevy::light::atmosphere::ScatteringMedium;
@@ -37,6 +38,7 @@ fn main() {
             EntropyPlugin::<WyRand>::default(),
             PhysicsPlugins::default(),
             HanabiPlugin,
+            audio::ProceduralAudioPlugin,
             input::InputPlugin,
             ship::ShipPlugin,
             ui::HudPlugin,

@@ -8,9 +8,11 @@ mod aero;
 mod control_surface;
 mod thrust;
 mod thrust_fx;
+pub mod weapon;
 
 use crate::ship::aero::FuselageDrag;
 use crate::ship::control_surface::ControlSurfacePosition;
+use crate::ship::weapon::RotaryGun;
 pub use aero::{AeroSurface, FlightTelemetry};
 pub use thrust::Thrust;
 use thrust_fx::{ThrusterEffectHandle, ThrusterParticle};
@@ -37,7 +39,13 @@ impl Plugin for ShipPlugin {
             Startup,
             (thrust_fx::setup_thruster_effect, spawn_ship).chain(),
         )
-        .add_systems(Update, (thrust_fx::update_thrust_particles,))
+        .add_systems(
+            Update,
+            (
+                thrust_fx::update_thrust_particles,
+                weapon::handle_gun_firing,
+            ),
+        )
         .add_systems(
             FixedUpdate,
             (
@@ -109,6 +117,7 @@ pub fn spawn_ship(
         .spawn_scene(bsn! {
             Name::new("Player")
             Ship
+            RotaryGun::default()
             Visibility::default()
             FlightTelemetry::default()
             template_value(LinearVelocity(Vec3::NEG_Z * 200.0))

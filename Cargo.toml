@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 avian3d = "0.7.0"
-bevy = { version = "0.19.1", features = ["webgpu"] }
+bevy = { version = "0.19.1", features = ["webgpu", "wav"] }
 bevy-inspector-egui = "0.37.0"
 bevy_embedded_assets = "0.16.0"
 leafwing-input-manager = "0.21.0"
@@ -14,6 +14,8 @@ virtual_joystick = "2.8.0"
 bevy_hanabi = { version = "0.19", default-features = false, features = ["3d"] }
 bevy_rand = { version = "0.15.2", features = ["wyrand"] }
 rand = "0.10.2"
+fundsp = "0.23.0"
+hound = "3.5.1"
 
 [target.'cfg(all(target_family = "wasm", any(target_os = "unknown", target_os = "none")))'.dependencies]
 bevy_rand = { version = "0.15.2", features = ["wasm_js"] }

@@ -125,9 +125,9 @@ fn generate_rotary_spool_loop() -> Box<dyn AudioUnit> {
 
 /// Deep combustion & turbine exhaust loop
 fn generate_thruster_base_loop() -> Box<dyn AudioUnit> {
-    let sub_rumble = (pink() | constant(90.0) | constant(0.9)) >> (lowpass() * 1.8);
-    let mid_roar = (pink() | constant(380.0) | constant(1.4)) >> (bandpass() * 1.2);
-    let exhaust_hiss = (white() | constant(2200.0) | constant(1.0)) >> (bandpass() * 0.35);
+    let sub_rumble = (pink() | constant(60.0) | constant(0.9)) >> (lowpass() * 1.8);
+    let mid_roar = (pink() | constant(240.0) | constant(1.4)) >> (bandpass() * 1.2);
+    let exhaust_hiss = (white() | constant(1000.0) | constant(1.0)) >> (bandpass() * 0.35);
 
     let engine_mix = (sub_rumble + mid_roar + exhaust_hiss) * 1.3;
     Box::new((engine_mix >> shape(Tanh(1.0)) >> declick()) * 0.8)

@@ -28,16 +28,13 @@ pub struct AeroSurface {
     pub stall_angle: f32,
 }
 
-/// Calculate aero forces using Transform, not GlobalTransform,
-/// as GlobalTransform is only propagated on Update, not FixedUpdate
 pub fn calculate_aero_surface_forces(
-    mut ships: Query<(Forces, &Transform, &Children)>,
+    mut ships: Query<(Forces, &Transform, &Children, Option<&mut FlightTelemetry>)>,
     surfaces: Query<(&AeroSurface, &Transform)>,
 ) {
     let air_density = 1.225; // kg/m^3
 
-    for (mut forces, ship_transform, children) in ships.iter_mut() {
-        let ship_pos = ship_transform.translation;
+    for (mut forces, ship_transform, children, mut telemetry) in ships.iter_mut() {
         let ship_rot = ship_transform.rotation;
         let ship_lin_vel = forces.linear_velocity();
         let ship_ang_vel = forces.angular_velocity();
@@ -50,13 +47,12 @@ pub fn calculate_aero_surface_forces(
                 continue;
             };
 
-            // Calculate instantaneous world position & rotation directly in-place:
-            let surf_pos = ship_pos + ship_rot * child_transform.translation;
+            // World-space lever arm and orientation for this aerodynamic surface
+            let arm = ship_rot * child_transform.translation;
             let surf_rot = ship_rot * child_transform.rotation;
-            let surf_up = surf_rot * Vec3::Y; // Lift direction / normal to wing
+            let surf_up = surf_rot * Vec3::Y; // Wing normal (lift axis)
 
-            // Local velocity of this surface through the air: v_point = v_linear + omega x r
-            let arm = surf_pos - ship_pos;
+            // Surface velocity relative to air: v_point = v_linear + omega x r
             let point_velocity = ship_lin_vel + ship_ang_vel.cross(arm);
             let speed = point_velocity.length();
 
@@ -78,7 +74,7 @@ pub fn calculate_aero_surface_forces(
             let lift_mag = dynamic_pressure * surface.area * cl;
             let drag_mag = dynamic_pressure * surface.area * cd;
 
-            // Force Vectors
+            // Lift is perpendicular to velocity in the wing's lift plane
             let lift_dir = (surf_up - vel_dir * surf_up.dot(vel_dir)).normalize_or_zero();
             let lift_force = lift_dir * lift_mag;
             let drag_force = -vel_dir * drag_mag;
@@ -91,29 +87,28 @@ pub fn calculate_aero_surface_forces(
             total_lift += lift_force;
             total_drag += drag_force;
         }
+
+        if let Some(ref mut t) = telemetry {
+            t.linear_velocity = ship_lin_vel;
+            t.angular_velocity = ship_ang_vel;
+            t.lift = total_lift;
+            t.drag = total_drag;
+        }
     }
 }
-/// Computes C_L and C_D across the full range of AoA with smooth stall transition
+
 fn calculate_aerodynamic_coefficients(surface: &AeroSurface, aoa: f32) -> (f32, f32) {
-    // 1. Stall transition width (~4.5° in radians)
     const STALL_WIDTH: f32 = 0.08;
-    // Flat plate bluff drag coefficient in full separation (~1.4 - 1.6)
     const CD_POST_STALL_PLATE: f32 = 1.5;
 
-    // 2. Separation factor (sigmoid curve: 0.0 attached -> 0.5 at stall angle -> 1.0 detached)
     let separation = 1.0 / (1.0 + (-(aoa.abs() - surface.stall_angle) / STALL_WIDTH).exp());
 
-    // 3. Attached flow regime (linear lift + induced drag)
     let cl_attached = surface.lift_slope * aoa;
     let cd_attached = surface.drag_0 + surface.induced_drag_coeff * cl_attached.powi(2);
 
-    // 4. Stalled / fully separated flow regime (Viterna flat-plate model)
-    // C_L,separated = C_d,plate * sin(AoA) * cos(AoA) = 0.5 * C_d,plate * sin(2*AoA)
-    // C_D,separated = C_d0 + C_d,plate * sin^2(AoA)
     let cl_separated = 0.5 * CD_POST_STALL_PLATE * (2.0 * aoa).sin();
     let cd_separated = surface.drag_0 + CD_POST_STALL_PLATE * aoa.sin().powi(2);
 
-    // 5. Smoothly blend both regimes
     let cl = (1.0 - separation) * cl_attached + separation * cl_separated;
     let cd = (1.0 - separation) * cd_attached + separation * cd_separated;
 
@@ -126,53 +121,42 @@ fn calculate_dynamic_pressure(air_density: f32, speed: f32) -> f32 {
 
 #[derive(Component, Reflect, Clone, Copy)]
 pub struct FuselageDrag {
-    /// Effective drag area (Cd * Area) for forward/backward flight
-    /// Streamlined shape: low value (e.g., 0.05 - 0.2 m²)
     pub forward_area: f32,
-
-    /// Effective drag area for lateral/side-slip flight (X-axis)
-    /// Bluff cylinder shape: high value (e.g., 1.5 - 4.0 m²)
     pub side_area: f32,
-
-    /// Effective drag area for vertical/belly flight (Y-axis)
-    /// Bluff cylinder shape: high value (e.g., 2.0 - 5.0 m²)
     pub top_area: f32,
 }
 
 impl Default for FuselageDrag {
     fn default() -> Self {
         Self {
-            forward_area: 0.08, // Low resistance cutting through air
-            side_area: 2.5,     // High resistance to sideways drifting
-            top_area: 3.5,      // High resistance to vertical pancake motion
+            forward_area: 0.08,
+            side_area: 2.5,
+            top_area: 3.5,
         }
     }
 }
 
-pub fn calculate_fuselage_drag(mut ships: Query<(Forces, &GlobalTransform, &FuselageDrag)>) {
+pub fn calculate_fuselage_drag(mut ships: Query<(Forces, &Transform, &FuselageDrag)>) {
     let air_density = 1.225; // kg/m^3
 
-    for (mut forces, transform, fuselage) in ships.iter_mut() {
-        let rotation = transform.compute_transform().rotation;
+    for (mut forces, ship_transform, fuselage) in ships.iter_mut() {
+        let rotation = ship_transform.rotation;
         let lin_vel = forces.linear_velocity();
 
-        // 1. Transform world velocity into local aircraft space
-        // (X = Right, Y = Up, Z = Backwards / -Z = Forward)
+        // Transform world velocity into local aircraft space (X = Right, Y = Up, -Z = Forward)
         let local_v = rotation.inverse() * lin_vel;
 
-        // 2. Compute dynamic pressure per axis: 0.5 * rho * v * |v|
+        // Dynamic pressure per axis: 0.5 * rho * v * |v|
         let q_x = 0.5 * air_density * local_v.x * local_v.x.abs();
         let q_y = 0.5 * air_density * local_v.y * local_v.y.abs();
         let q_z = 0.5 * air_density * local_v.z * local_v.z.abs();
 
-        // 3. Local drag force opposes velocity in each axis: F = -q * (Cd * A)
         let local_drag = Vec3::new(
             -q_x * fuselage.side_area,
             -q_y * fuselage.top_area,
             -q_z * fuselage.forward_area,
         );
 
-        // 4. Convert back to world space and apply
         let world_drag = rotation * local_drag;
         forces.apply_force(world_drag);
     }

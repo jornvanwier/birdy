@@ -44,7 +44,6 @@ pub(crate) fn handle_throttle(
     let delta_t = time.delta_secs();
 
     for (child_of, mut throttle) in thrust_query.iter_mut() {
-        // Look up input state on the parent entity using ChildOf
         if let Ok(action_state) = action_query.get(child_of.parent()) {
             if action_state.pressed(&Action::FullThrottle) {
                 throttle.target_throttle = 1.;
@@ -61,18 +60,32 @@ pub(crate) fn handle_throttle(
 }
 
 pub fn apply_thrust(
-    thruster_query: Query<(&Thrust, &GlobalTransform, &ChildOf)>,
-    mut forces_query: Query<Forces>,
+    mut ships: Query<(Forces, &Transform, &Children)>,
+    thrusters: Query<(&Thrust, &Transform)>,
 ) {
-    for (thrust, global_transform, child_of) in thruster_query.iter() {
-        if let Ok(mut forces) = forces_query.get_mut(child_of.parent()) {
-            let magnitude = thrust.current_throttle * thrust.peak_thrust;
-            let direction = *global_transform.forward();
+    for (mut forces, ship_transform, children) in ships.iter_mut() {
+        let ship_rot = ship_transform.rotation;
 
-            forces.apply_force_at_point(
-                direction * magnitude,
-                global_transform.compute_transform().translation,
-            );
+        for child in children.iter() {
+            let Ok((thrust, thruster_transform)) = thrusters.get(child) else {
+                continue;
+            };
+
+            let magnitude = thrust.current_throttle * thrust.peak_thrust;
+            if magnitude <= 0.0 {
+                continue;
+            }
+
+            // Direction the thruster points in world space (thrust pushes along ship's forward/-Z)
+            let thruster_world_rot = ship_rot * thruster_transform.rotation;
+            let thrust_direction = thruster_world_rot * Vec3::NEG_Z;
+            let thrust_force = thrust_direction * magnitude;
+
+            // Lever arm from ship center of mass to thruster in world coordinates
+            let arm = ship_rot * thruster_transform.translation;
+
+            forces.apply_force(thrust_force);
+            forces.apply_torque(arm.cross(thrust_force));
         }
     }
 }

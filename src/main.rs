@@ -1,4 +1,5 @@
 mod audio;
+mod big_bird;
 mod camera;
 mod clouds;
 mod debug;
@@ -14,6 +15,7 @@ use bevy::prelude::*;
 use bevy_embedded_assets::{EmbeddedAssetPlugin, PluginMode};
 use bevy_hanabi::HanabiPlugin;
 use bevy_rand::prelude::*;
+use big_space::prelude::*;
 use shadow_rs::shadow;
 
 shadow!(build_info);
@@ -26,22 +28,27 @@ fn main() {
             EmbeddedAssetPlugin {
                 mode: PluginMode::ReplaceDefault,
             },
-            DefaultPlugins.set(WindowPlugin {
-                primary_window: Some(Window {
-                    title: "Birdy Flight Sim".into(),
-                    canvas: Some("#bevy".into()),
-                    fit_canvas_to_parent: true,
-                    prevent_default_event_handling: true,
-                    ..default()
-                }),
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: "Birdy Flight Sim".into(),
+                        canvas: Some("#bevy".into()),
+                        fit_canvas_to_parent: true,
+                        prevent_default_event_handling: true,
+                        ..default()
+                    }),
 
-                ..default()
-            }).set(AudioPlugin {
-                global_volume: GlobalVolume::new(Volume::Linear(0.1)),
-                ..default()
-            }),
-            EntropyPlugin::<WyRand>::default(),
+                    ..default()
+                })
+                .set(AudioPlugin {
+                    global_volume: GlobalVolume::new(Volume::Linear(0.1)),
+                    ..default()
+                })
+                .disable::<TransformPlugin>(),
+            BigSpaceDefaultPlugins,
             PhysicsPlugins::default(),
+            big_bird::BigSpaceAvianSyncPlugin,
+            EntropyPlugin::<WyRand>::default(),
             HanabiPlugin,
             audio::ProceduralAudioPlugin,
             input::InputPlugin,
@@ -51,12 +58,42 @@ fn main() {
             clouds::CloudsPlugin,
             debug::DebugPlugin,
         ))
-        .add_systems(Startup, setup_atmosphere_and_scene)
+        .add_systems(Startup, (setup_space, setup_celestial_bodies).chain())
         .run();
 }
 
-fn setup_atmosphere_and_scene(
+fn setup_space(mut commands: Commands) {
+    commands.spawn_scene(bsn! {
+        BigSpace
+        Grid
+        Visibility::Visible
+        Children [
+            camera::camera_scene(),
+
+            (
+                #Sun
+                DirectionalLight {
+                    illuminance: 120_000.0,
+                    shadow_maps_enabled: true,
+                }
+                VolumetricLight
+                template_value(CascadeShadowConfigBuilder {
+                    num_cascades: 4,
+                    minimum_distance: 0.5,
+                    maximum_distance: 10_000.0,
+                    first_cascade_far_bound: 100.0,
+                        ..default()
+                }
+                .build())
+                template_value(Transform::from_xyz(10_000.0, 15_000.0, 10_000.0).looking_at(Vec3::ZERO, Vec3::Y))
+            )
+        ]
+    });
+}
+
+fn setup_celestial_bodies(
     mut commands: Commands,
+    space: Single<Entity, With<BigSpace>>,
     mut mediums: ResMut<Assets<ScatteringMedium>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -66,43 +103,27 @@ fn setup_atmosphere_and_scene(
     let earth_atmosphere = Atmosphere::earth(earth_medium);
     let planet_radius = earth_atmosphere.inner_radius;
 
-    commands.spawn((
-        Name::new("PlanetAtmosphere"),
-        earth_atmosphere,
-        Transform::from_xyz(0.0, -planet_radius, 0.0),
-    ));
+    commands.entity(*space).with_children(|parent| {
+        parent.spawn((
+            Name::new("PlanetAtmosphere"),
+            earth_atmosphere,
+            CellCoord::default(),
+            Transform::from_xyz(0.0, -planet_radius, 0.0),
+        ));
 
-    // 2. Sun with extended shadow cascades
-    commands.spawn((
-        Name::new("Sun"),
-        DirectionalLight {
-            illuminance: 120_000.0,
-            shadow_maps_enabled: true,
-            ..default()
-        },
-        VolumetricLight,
-        CascadeShadowConfigBuilder {
-            num_cascades: 4,
-            minimum_distance: 0.5,
-            maximum_distance: 10_000.0,
-            first_cascade_far_bound: 100.0,
-            ..default()
-        }
-        .build(),
-        Transform::from_xyz(10_000.0, 15_000.0, 10_000.0).looking_at(Vec3::ZERO, Vec3::Y),
-    ));
-
-    // 3. Ground Plane
-    commands.spawn((
-        Name::new("Ground"),
-        Mesh3d(meshes.add(Plane3d::new(Vec3::Y, Vec2::new(50_000.0, 50_000.0)))),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::srgb(0.1, 0.35, 0.15),
-            perceptual_roughness: 0.9,
-            ..default()
-        })),
-        Transform::from_xyz(0.0, 0.0, 0.0),
-        RigidBody::Static,
-        Collider::half_space(Vec3::Y),
-    ));
+        // 3. Ground Plane
+        parent.spawn((
+            Name::new("Ground"),
+            Mesh3d(meshes.add(Plane3d::new(Vec3::Y, Vec2::new(50_000.0, 50_000.0)))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgb(0.1, 0.35, 0.15),
+                perceptual_roughness: 0.9,
+                ..default()
+            })),
+            CellCoord::default(),
+            Transform::from_xyz(0.0, 0.0, 0.0),
+            RigidBody::Static,
+            Collider::half_space(Vec3::Y),
+        ));
+    });
 }

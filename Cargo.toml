@@ -13,6 +13,11 @@ shadow-rs = { version = "2.0.0", default-features = false }
 virtual_joystick = "2.8.0"
 bevy_hanabi = { version = "0.19", default-features = false, features = ["3d"] }
 bevy_rand = { version = "0.15.2", features = ["wyrand"] }
+# TODO wait for
+#  - https://github.com/aevyrie/big_space/pull/77
+#  - https://github.com/aevyrie/big_space/pull/78
+#big_space = { git = "https://github.com/aevyrie/big_space", branch = "bevy-0.19" }
+big_space = { git = "https://github.com/VertexStudio/big_space", branch = "bevy-0.19" }
 rand = "0.10.2"
 fundsp = "0.23.0"
 hound = "3.5.1"

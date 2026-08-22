@@ -3,13 +3,14 @@ use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy_hanabi::prelude::*;
 use bevy_rand::prelude::*;
+use big_space::prelude::*;
 use rand::prelude::*;
 
 pub struct CloudsPlugin;
 
 impl Plugin for CloudsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_clouds);
+        app.add_systems(Startup, spawn_clouds.after(crate::setup_space));
     }
 }
 
@@ -18,6 +19,7 @@ fn spawn_clouds(
     mut effects: ResMut<Assets<EffectAsset>>,
     mut images: ResMut<Assets<Image>>,
     mut rng: Single<&mut WyRand, With<GlobalRng>>,
+    space: Single<Entity, With<BigSpace>>,
 ) {
     let puff_texture_handle = images.add(create_soft_cloud_puff_texture(128));
 
@@ -83,35 +85,39 @@ fn spawn_clouds(
             .expect("Cloud archetypes empty")
             .clone();
 
-        // Spawn primary cloud formation
-        commands.spawn((
-            Name::new(format!("Cloud_{i}")),
-            ParticleEffect::new(selected_effect),
-            EffectMaterial {
-                images: vec![puff_texture_handle.clone()],
-            },
-            Transform::from_translation(Vec3::new(x, y, z)).with_rotation(rotation),
-        ));
-
-        // For large decks and rolls, occasionally chain an offset companion for organic shape breaks
-        if (archetype_idx == 1 || archetype_idx == 2) && rng.random_range(0.0..1.0) > 0.40 {
-            let offset_local = Vec3::new(
-                rng.random_range(-600.0..600.0),
-                rng.random_range(-80.0..80.0),
-                rng.random_range(-300.0..300.0),
-            );
-            let offset_world = rotation * offset_local;
-
-            commands.spawn((
-                Name::new(format!("Cloud_{i}_Companion")),
-                ParticleEffect::new(cloud_archetypes[0].clone()),
+        commands.entity(*space).with_children(|parent| {
+            // Spawn primary cloud formation
+            parent.spawn((
+                Name::new(format!("Cloud_{i}")),
+                ParticleEffect::new(selected_effect),
                 EffectMaterial {
                     images: vec![puff_texture_handle.clone()],
                 },
-                Transform::from_translation(Vec3::new(x, y, z) + offset_world)
-                    .with_rotation(rotation),
+                CellCoord::default(),
+                Transform::from_translation(Vec3::new(x, y, z)).with_rotation(rotation),
             ));
-        }
+
+            // For large decks and rolls, occasionally chain an offset companion for organic shape breaks
+            if (archetype_idx == 1 || archetype_idx == 2) && rng.random_range(0.0..1.0) > 0.40 {
+                let offset_local = Vec3::new(
+                    rng.random_range(-600.0..600.0),
+                    rng.random_range(-80.0..80.0),
+                    rng.random_range(-300.0..300.0),
+                );
+                let offset_world = rotation * offset_local;
+
+                parent.spawn((
+                    Name::new(format!("Cloud_{i}_Companion")),
+                    ParticleEffect::new(cloud_archetypes[0].clone()),
+                    EffectMaterial {
+                        images: vec![puff_texture_handle.clone()],
+                    },
+                    CellCoord::default(),
+                    Transform::from_translation(Vec3::new(x, y, z) + offset_world)
+                        .with_rotation(rotation),
+                ));
+            };
+        });
     }
 }
 

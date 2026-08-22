@@ -2,6 +2,7 @@ use crate::input::create_input_map;
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_hanabi::{EffectProperties, ParticleEffect};
+use big_space::prelude::{BigSpace, CellCoord};
 use control_surface::{ControlSurfaceActuator, ControlSurfaceOrientation};
 
 mod aero;
@@ -37,7 +38,9 @@ impl Plugin for ShipPlugin {
         )
         .add_systems(
             Startup,
-            (thrust_fx::setup_thruster_effect, spawn_ship).chain(),
+            (thrust_fx::setup_thruster_effect, spawn_ship)
+                .chain()
+                .after(crate::setup_space),
         )
         .add_systems(
             Update,
@@ -80,6 +83,7 @@ pub fn spawn_ship(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     effect_handle: Res<ThrusterEffectHandle>,
+    space: Single<Entity, With<BigSpace>>,
 ) {
     info!("Spawning F-16 spec fighter");
     let input_map = create_input_map();
@@ -112,8 +116,9 @@ pub fn spawn_ship(
     };
 
     let fin_rot = Quat::from_rotation_z(std::f32::consts::FRAC_PI_2);
+    let initial_pos = Vec3::new(0.0, 1500.0, 10.0);
 
-    commands
+    let ship_id =commands
         .spawn_scene(bsn! {
             Name::new("Player")
             Ship
@@ -121,11 +126,12 @@ pub fn spawn_ship(
             Visibility::default()
             FlightTelemetry::default()
             template_value(LinearVelocity(Vec3::NEG_Z * 200.0))
-            Transform::from_xyz(0.0, 1500.0, 10.0)
+            template_value(Position::from(initial_pos))
+            Transform::from_translation(initial_pos)
+            CellCoord::default()
             template_value(RigidBody::Dynamic)
             Collider::cuboid(10.0, 3.5, 15.0)
             Mass(11_000.0)
-            TransformInterpolation
 
             Children [
                 (
@@ -245,5 +251,7 @@ pub fn spawn_ship(
                     Transform::from_xyz(-x_offset * 1.5, 0.0, 4.2),
                 ));
             }
-        });
+        }).id();
+
+    commands.entity(*space).add_child(ship_id);
 }

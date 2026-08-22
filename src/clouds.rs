@@ -19,13 +19,12 @@ fn spawn_clouds(
     mut effects: ResMut<Assets<EffectAsset>>,
     mut images: ResMut<Assets<Image>>,
     mut rng: Single<&mut WyRand, With<GlobalRng>>,
-    space: Single<Entity, With<BigSpace>>,
+    space: Single<(Entity, &Grid), With<BigSpace>>,
 ) {
     let puff_texture_handle = images.add(create_soft_cloud_puff_texture(128));
 
     // 1. Build distinct cloud archetypes with varied extents (Length, Height, Width)
 
-    // Small, classic puffy cumulus
     let small_cloud = effects.add(create_cloud_effect_asset(
         "CumulusSmall",
         96,
@@ -35,7 +34,6 @@ fn spawn_clouds(
         0.28,
     ));
 
-    // Long, flat, stretched-out cloud street / roll cloud (~3.5 km long)
     let roll_cloud = effects.add(create_cloud_effect_asset(
         "CloudStreet",
         256,
@@ -45,7 +43,6 @@ fn spawn_clouds(
         0.22,
     ));
 
-    // Broad, expansive flat-bottomed cloud deck (~2.5 km x 2.0 km)
     let broad_deck = effects.add(create_cloud_effect_asset(
         "CumulusDeck",
         256,
@@ -55,7 +52,6 @@ fn spawn_clouds(
         0.20,
     ));
 
-    // Tall, billowy convective cumulus tower
     let tower_cloud = effects.add(create_cloud_effect_asset(
         "CumulusTower",
         180,
@@ -71,11 +67,12 @@ fn spawn_clouds(
     let num_clouds = 45;
 
     for i in 0..num_clouds {
-        let x = rng.random_range(-17_000.0..17_000.0);
-        let y = rng.random_range(850.0..2_400.0);
-        let z = rng.random_range(-17_000.0..17_000.0);
+        let raw_pos = Vec3::new(
+            rng.random_range(-17_000.0..17_000.0),
+            rng.random_range(850.0..2_400.0),
+            rng.random_range(-17_000.0..17_000.0),
+        );
 
-        // Random yaw rotation to align elongated clouds in different directions
         let yaw = rng.random_range(0.0..std::f32::consts::TAU);
         let rotation = Quat::from_rotation_y(yaw);
 
@@ -85,19 +82,24 @@ fn spawn_clouds(
             .expect("Cloud archetypes empty")
             .clone();
 
-        commands.entity(*space).with_children(|parent| {
-            // Spawn primary cloud formation
+        let (space_entity, grid) = *space;
+
+        let (cell, local_translation) = grid.imprecise_translation_to_grid(raw_pos);
+
+        commands.entity(space_entity).with_children(|parent| {
+            // Primary cloud formation
             parent.spawn((
                 Name::new(format!("Cloud_{i}")),
                 ParticleEffect::new(selected_effect),
+                EffectProperties::default(), // <-- Added so origin_delta property can be passed
                 EffectMaterial {
                     images: vec![puff_texture_handle.clone()],
                 },
-                CellCoord::default(),
-                Transform::from_translation(Vec3::new(x, y, z)).with_rotation(rotation),
+                cell,
+                Transform::from_translation(local_translation).with_rotation(rotation),
             ));
 
-            // For large decks and rolls, occasionally chain an offset companion for organic shape breaks
+            // Companion cloud formation
             if (archetype_idx == 1 || archetype_idx == 2) && rng.random_range(0.0..1.0) > 0.40 {
                 let offset_local = Vec3::new(
                     rng.random_range(-600.0..600.0),
@@ -105,16 +107,18 @@ fn spawn_clouds(
                     rng.random_range(-300.0..300.0),
                 );
                 let offset_world = rotation * offset_local;
+                let (cell, local_translation) =
+                    grid.imprecise_translation_to_grid(raw_pos + offset_world);
 
                 parent.spawn((
                     Name::new(format!("Cloud_{i}_Companion")),
                     ParticleEffect::new(cloud_archetypes[0].clone()),
+                    EffectProperties::default(), // <-- Added here as well
                     EffectMaterial {
                         images: vec![puff_texture_handle.clone()],
                     },
-                    CellCoord::default(),
-                    Transform::from_translation(Vec3::new(x, y, z) + offset_world)
-                        .with_rotation(rotation),
+                    cell,
+                    Transform::from_translation(local_translation).with_rotation(rotation),
                 ));
             };
         });
@@ -134,20 +138,29 @@ fn create_cloud_effect_asset(
     module.add_texture_slot("cloud_puff");
     let texture_slot = module.lit(0u32);
 
-    // 1. Scatter in a unit sphere volume
+    // 1. Dynamic origin_delta property for floating-origin rebasing
+    let origin_delta_prop = module.add_property("origin_delta", Vec3::ZERO.into());
+    let origin_delta = module.prop(origin_delta_prop);
+
+    // 2. Scatter in a unit sphere volume
     let init_sphere = SetPositionSphereModifier {
         center: module.lit(Vec3::ZERO),
         radius: module.lit(1.0),
         dimension: ShapeDimension::Volume,
     };
 
-    // 2. Scale unit sphere by (X, Y, Z) extents to form custom 3D ellipsoids (long rolls, flat decks, towers)
+    // 3. Scale unit sphere by (X, Y, Z) extents
     let pos_attr = module.attr(Attribute::POSITION);
     let scale_expr = module.lit(extents);
     let scaled_pos = module.mul(pos_attr, scale_expr);
     let set_scaled_pos = SetAttributeModifier::new(Attribute::POSITION, scaled_pos);
 
     let init_lifetime = SetAttributeModifier::new(Attribute::LIFETIME, module.lit(999_999.0));
+
+    // 4. Update Modifier: Shift GPU particle position when origin_delta is non-zero
+    let cur_pos = module.attr(Attribute::POSITION);
+    let rebased_pos = module.add(cur_pos, origin_delta);
+    let update_pos = SetAttributeModifier::new(Attribute::POSITION, rebased_pos);
 
     let render_size = SetSizeModifier {
         size: Vec3::splat(puff_size).into(),
@@ -159,11 +172,12 @@ fn create_cloud_effect_asset(
 
     EffectAsset::new(capacity, SpawnerSettings::once(puff_count.into()), module)
         .with_name(name)
-        // Disables position-velocity integration warnings for static particles
+        .with_simulation_space(SimulationSpace::Global)
         .with_motion_integration(MotionIntegration::None)
         .init(init_sphere)
         .init(set_scaled_pos)
         .init(init_lifetime)
+        .update(update_pos)
         .render(render_size)
         .render(ColorOverLifetimeModifier::new(gradient))
         .render(ParticleTextureModifier {
@@ -176,7 +190,6 @@ fn create_cloud_effect_asset(
         })
 }
 
-/// Generates a smooth cosine-smoothed radial gradient (1.0 at center -> 0.0 at radius)
 fn create_soft_cloud_puff_texture(size: u32) -> Image {
     let mut data = Vec::with_capacity((size * size * 4) as usize);
     let center = size as f32 / 2.0;

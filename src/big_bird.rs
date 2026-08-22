@@ -2,6 +2,7 @@ use avian3d::physics_transform::PhysicsTransformConfig;
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use big_space::prelude::*;
+use bevy_hanabi::prelude::*;
 
 pub struct BigSpaceAvianSyncPlugin;
 
@@ -86,5 +87,51 @@ pub fn read_avian_pos(
         *cell = new_cell;
         transform.translation = new_translation;
         transform.rotation = rot.0;
+    }
+}
+
+#[derive(Resource, Default)]
+struct LastOriginCell(Option<CellCoord>);
+
+pub struct BigSpaceHanabiSyncPlugin;
+
+impl Plugin for BigSpaceHanabiSyncPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<LastOriginCell>()
+            .add_systems(PostUpdate, sync_hanabi_floating_origin);
+    }
+}
+
+fn sync_hanabi_floating_origin(
+    grid: Single<&Grid, With<BigSpace>>,
+    origin_query: Single<&CellCoord, With<FloatingOrigin>>,
+    mut last_cell: ResMut<LastOriginCell>,
+    mut effect_query: Query<&mut EffectProperties>,
+) {
+    let current_cell = *origin_query;
+    let edge_len = grid.cell_edge_length();
+
+    let origin_delta = if let Some(prev) = last_cell.0 {
+        if prev != *current_cell {
+            info!("Cell shift!");
+            // Number of cells shifted in (X, Y, Z)
+            let dx = (current_cell.x - prev.x) as f32;
+            let dy = (current_cell.y - prev.y) as f32;
+            let dz = (current_cell.z - prev.z) as f32;
+
+            // Invert vector: world coordinates move opposite to cell coordinate index hop
+            -Vec3::new(dx * edge_len, dy * edge_len, dz * edge_len)
+        } else {
+            Vec3::ZERO
+        }
+    } else {
+        Vec3::ZERO
+    };
+
+    last_cell.0 = Some(*current_cell);
+
+    // Apply origin_delta to all active particle effects
+    for mut properties in effect_query.iter_mut() {
+        properties.set("origin_delta", origin_delta.into());
     }
 }

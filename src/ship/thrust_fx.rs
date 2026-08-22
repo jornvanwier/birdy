@@ -32,6 +32,10 @@ pub fn setup_thruster_effect(mut commands: Commands, mut effects: ResMut<Assets<
     let exhaust_vel_prop = writer.add_property("exhaust_velocity", Vec3::ZERO.into());
     let exhaust_vel_expr = writer.prop(exhaust_vel_prop);
 
+    // Floating-origin compensation property (0 by default, non-zero on cell hop)
+    let origin_delta_prop = writer.add_property("origin_delta", Vec3::ZERO.into());
+    let origin_delta_expr = writer.prop(origin_delta_prop);
+
     // Lifetime scales with throttle
     let base_lifetime = writer.lit(0.35f32);
     let lifetime = (base_lifetime * throttle_expr).expr();
@@ -47,6 +51,13 @@ pub fn setup_thruster_effect(mut commands: Commands, mut effects: ResMut<Assets<
     // Initial velocity uses the computed world-space exhaust velocity
     let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, exhaust_vel_expr.expr());
 
+    // Every frame, add origin_delta to Attribute::POSITION.
+    // (When delta is ZERO, this is a negligible no-op on the GPU)
+    let update_pos = SetAttributeModifier::new(
+        Attribute::POSITION,
+        (writer.attr(Attribute::POSITION) + origin_delta_expr).expr(),
+    );
+
     let rotation = (writer.rand(ScalarType::Float) * writer.lit(std::f32::consts::TAU)).expr();
     let init_rotation = SetAttributeModifier::new(Attribute::F32_0, rotation);
     let rotation_attr = writer.attr(Attribute::F32_0).expr();
@@ -58,6 +69,7 @@ pub fn setup_thruster_effect(mut commands: Commands, mut effects: ResMut<Assets<
         .init(init_lifetime)
         .init(init_rotation)
         .init(init_vel)
+        .update(update_pos)
         .render(OrientModifier {
             mode: OrientMode::FaceCameraPosition,
             rotation: Some(rotation_attr),

@@ -48,6 +48,7 @@ fn main() {
             BigSpaceDefaultPlugins,
             PhysicsPlugins::default(),
             big_bird::BigSpaceAvianSyncPlugin,
+            big_bird::BigSpaceHanabiSyncPlugin,
             EntropyPlugin::<WyRand>::default(),
             HanabiPlugin,
             audio::ProceduralAudioPlugin,

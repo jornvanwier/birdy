@@ -1,6 +1,7 @@
 use crate::ship::Player;
 use crate::ship::sensors::{FlightSensorData, LiftAndDragMeasurement, ThrustMeasurement};
 use bevy::prelude::*;
+use big_space::prelude::CellCoord;
 
 pub fn setup_telemetry(mut commands: Commands) {
     commands.spawn_scene(bsn! {
@@ -8,6 +9,7 @@ pub fn setup_telemetry(mut commands: Commands) {
             position_type: PositionType::Absolute,
             top: px(10.0),
             right: px(10.0),
+            width: px(220.0),
             flex_direction: FlexDirection::Column,
             row_gap: px(4.0),
             padding: UiRect::all(px(8.0)),
@@ -19,56 +21,27 @@ pub fn setup_telemetry(mut commands: Commands) {
                 TextFont { font_size: px(16.0) }
                 TextColor(Color::WHITE)
             ),
-            (
-                Text()
-                TextFont { font_size: px(14.0) }
-                TextColor(Color::srgb(0.2, 1.0, 0.4))
-                TelemetryField::Speed
-            ),
-            (
-                Text()
-                TextFont { font_size: px(14.0) }
-                TextColor(Color::srgb(0.2, 1.0, 0.4))
-                TelemetryField::Thrust
-            ),
-            (
-                Text()
-                TextFont { font_size: px(14.0) }
-                TextColor(Color::srgb(0.2, 1.0, 0.4))
-                TelemetryField::Lift
-            ),
-            (
-                Text()
-                TextFont { font_size: px(14.0) }
-                TextColor(Color::srgb(0.2, 1.0, 0.4))
-                TelemetryField::Drag
-            ),
-            (
-                Text()
-                TextFont { font_size: px(14.0) }
-                TextColor(Color::srgb(0.2, 1.0, 0.4))
-                TelemetryField::AngleOfAttack
-            ),
-            (
-                Text()
-                TextFont { font_size: px(14.0) }
-                TextColor(Color::srgb(0.2, 1.0, 0.4))
-                TelemetryField::DynamicPressure
-            ),
-            (
-                Text()
-                TextFont { font_size: px(14.0) }
-                TextColor(Color::srgb(0.2, 1.0, 0.4))
-                TelemetryField::Rotation
-            ),
-            (
-                Text()
-                TextFont { font_size: px(14.0) }
-                TextColor(Color::srgb(0.2, 1.0, 0.4))
-                TelemetryField::GForce
-            ),
+            telemetry_field(TelemetryField::Speed),
+            telemetry_field(TelemetryField::Thrust),
+            telemetry_field(TelemetryField::Lift),
+            telemetry_field(TelemetryField::Drag),
+            telemetry_field(TelemetryField::AngleOfAttack),
+            telemetry_field(TelemetryField::DynamicPressure),
+            telemetry_field(TelemetryField::Rotation),
+            telemetry_field(TelemetryField::GForce),
+            telemetry_field(TelemetryField::LocalPosition),
+            telemetry_field(TelemetryField::CellPosition),
         ]
     });
+}
+
+fn telemetry_field(field: TelemetryField) -> impl Scene {
+    bsn! {
+        Text()
+        TextFont { font_size: px(14.0) }
+        TextColor(Color::srgb(0.2, 1.0, 0.4))
+        template_value(field)
+    }
 }
 
 pub fn update_telemetry(
@@ -77,13 +50,20 @@ pub fn update_telemetry(
             &FlightSensorData,
             &LiftAndDragMeasurement,
             &ThrustMeasurement,
+            &Transform,
+            &CellCoord,
         ),
         With<Player>,
     >,
     mut text_query: Query<(&mut Text, &TelemetryField)>,
 ) {
-    let (sensors, LiftAndDragMeasurement { lift, drag }, ThrustMeasurement(thrust)) =
-        *telemetry_query;
+    let (
+        sensors,
+        LiftAndDragMeasurement { lift, drag },
+        ThrustMeasurement(thrust),
+        transform,
+        cell,
+    ) = *telemetry_query;
 
     for (mut text, field) in &mut text_query {
         text.0 = match field {
@@ -117,12 +97,18 @@ pub fn update_telemetry(
                     sensors.g_force_local.y
                 )
             }
+            TelemetryField::LocalPosition => {
+                format!("@ {:.2},{:.2},{:.2}", transform.translation.x, transform.translation.y, transform.translation.z)
+            }
+            TelemetryField::CellPosition => {
+                format!("# {},{},{}", cell.x, cell.y, cell.z)
+            }
         };
     }
 }
 
 /// Marker enum attached to UI text nodes to identify which field to display
-#[derive(Component, Clone, Default, FromTemplate)]
+#[derive(Component, Clone, Default)]
 pub enum TelemetryField {
     #[default]
     Speed,
@@ -133,4 +119,6 @@ pub enum TelemetryField {
     DynamicPressure,
     Rotation,
     GForce,
+    LocalPosition,
+    CellPosition,
 }

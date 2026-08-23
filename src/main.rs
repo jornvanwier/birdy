@@ -60,8 +60,19 @@ fn main() {
             clouds::CloudsPlugin,
             debug::DebugPlugin,
         ))
+        .add_systems(PreStartup, set_global_default_font)
         .add_systems(Startup, (setup_space, setup_celestial_bodies).chain())
         .run();
+}
+
+/// Override default font with JetBrains Mono
+fn set_global_default_font(mut fonts: ResMut<Assets<Font>>) {
+    const FONT_DATA: &[u8] = include_bytes!("../assets/game/fonts/JetBrainsMono-Regular.ttf");
+
+    let font = Font::from_bytes(FONT_DATA.to_vec());
+
+    // Overwrite Bevy's default font handle
+    fonts.insert(&Handle::default(), font).expect("Failed to insert font");
 }
 
 fn setup_space(mut commands: Commands) {

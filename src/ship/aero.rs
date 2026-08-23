@@ -47,43 +47,45 @@ pub fn calculate_aerodynamic_forces(
 ) {
     let air_density = 1.225; // kg/m^3
 
-    for (mut forces, ship_transform, fuselage, children, mut telemetry) in ships.iter_mut() {
-        let ship_kinematics = Kinematics {
-            rotation: ship_transform.rotation,
-            linear_velocity: forces.linear_velocity(),
-            angular_velocity: forces.angular_velocity(),
-        };
-
-        let mut total_lift = Vec3::ZERO;
-        let mut total_aero_surface_drag = Vec3::ZERO;
-
-        for child in children.iter() {
-            let Ok((surface, child_transform)) = surfaces.get(child) else {
-                continue;
+    ships.par_iter_mut().for_each(
+        |(mut forces, ship_transform, fuselage, children, mut telemetry)| {
+            let ship_kinematics = Kinematics {
+                rotation: ship_transform.rotation,
+                linear_velocity: forces.linear_velocity(),
+                angular_velocity: forces.angular_velocity(),
             };
 
-            if let Some((lift_force, drag_force)) = apply_aero_surface_lift_and_drag(
-                air_density,
-                &mut forces,
-                &ship_kinematics,
-                surface,
-                child_transform,
-            ) {
-                total_lift += lift_force;
-                total_aero_surface_drag += drag_force;
-            };
-        }
+            let mut total_lift = Vec3::ZERO;
+            let mut total_aero_surface_drag = Vec3::ZERO;
 
-        let fuselage_drag =
-            apply_fuselage_drag(fuselage, &ship_kinematics, air_density, &mut forces);
+            for child in children.iter() {
+                let Ok((surface, child_transform)) = surfaces.get(child) else {
+                    continue;
+                };
 
-        if let Some(ref mut t) = telemetry {
-            t.linear_velocity = ship_kinematics.linear_velocity;
-            t.angular_velocity = ship_kinematics.angular_velocity;
-            t.lift = total_lift;
-            t.drag = total_aero_surface_drag + fuselage_drag;
-        }
-    }
+                if let Some((lift_force, drag_force)) = apply_aero_surface_lift_and_drag(
+                    air_density,
+                    &mut forces,
+                    &ship_kinematics,
+                    surface,
+                    child_transform,
+                ) {
+                    total_lift += lift_force;
+                    total_aero_surface_drag += drag_force;
+                };
+            }
+
+            let fuselage_drag =
+                apply_fuselage_drag(fuselage, &ship_kinematics, air_density, &mut forces);
+
+            if let Some(ref mut t) = telemetry {
+                t.linear_velocity = ship_kinematics.linear_velocity;
+                t.angular_velocity = ship_kinematics.angular_velocity;
+                t.lift = total_lift;
+                t.drag = total_aero_surface_drag + fuselage_drag;
+            }
+        },
+    );
 }
 
 fn apply_aero_surface_lift_and_drag(

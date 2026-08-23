@@ -1,19 +1,8 @@
+use crate::ship::air_density;
+use crate::ship::sensors::LiftAndDragMeasurement;
 use avian3d::prelude::forces::ForcesItem;
 use avian3d::prelude::*;
 use bevy::prelude::*;
-
-#[derive(Component, Reflect, Clone, Default)]
-pub struct FlightTelemetry {
-    pub linear_velocity: Vec3,
-    pub angular_velocity: Vec3,
-    pub thrust: Vec3,
-    pub drag: Vec3,
-    pub lift: Vec3,
-    pub angle_of_attack: f32,
-    pub slip_ratio: f32,
-    pub dynamic_pressure: f32,
-    pub g_force: Vec3,
-}
 
 #[derive(Component, Reflect, Default, Clone, Copy)]
 pub struct AeroSurface {
@@ -41,48 +30,48 @@ pub fn calculate_aerodynamic_forces(
         &Transform,
         &FuselageDrag,
         &Children,
-        Option<&mut FlightTelemetry>,
+        Option<&mut LiftAndDragMeasurement>,
     )>,
     surfaces: Query<(&AeroSurface, &Transform)>,
 ) {
     let air_density = 1.225; // kg/m^3
 
     ships.par_iter_mut().for_each(
-        |(mut forces, ship_transform, fuselage, children, mut telemetry)| {
+        |(mut forces, ship_transform, fuselage, children, lift_and_drag_diagnostic)| {
             let ship_kinematics = Kinematics {
                 rotation: ship_transform.rotation,
                 linear_velocity: forces.linear_velocity(),
                 angular_velocity: forces.angular_velocity(),
             };
 
-            let mut total_lift = Vec3::ZERO;
-            let mut total_aero_surface_drag = Vec3::ZERO;
+            let mut total_lift_and_drag = LiftAndDragMeasurement {
+                lift: Vec3::ZERO,
+                drag: Vec3::ZERO,
+            };
 
             for child in children.iter() {
                 let Ok((surface, child_transform)) = surfaces.get(child) else {
                     continue;
                 };
 
-                if let Some((lift_force, drag_force)) = apply_aero_surface_lift_and_drag(
+                if let Some(values) = apply_aero_surface_lift_and_drag(
                     air_density,
                     &mut forces,
                     &ship_kinematics,
                     surface,
                     child_transform,
                 ) {
-                    total_lift += lift_force;
-                    total_aero_surface_drag += drag_force;
+                    total_lift_and_drag += values;
                 };
             }
 
             let fuselage_drag =
                 apply_fuselage_drag(fuselage, &ship_kinematics, air_density, &mut forces);
 
-            if let Some(ref mut t) = telemetry {
-                t.linear_velocity = ship_kinematics.linear_velocity;
-                t.angular_velocity = ship_kinematics.angular_velocity;
-                t.lift = total_lift;
-                t.drag = total_aero_surface_drag + fuselage_drag;
+            total_lift_and_drag.drag += fuselage_drag;
+
+            if let Some(mut diag) = lift_and_drag_diagnostic {
+                *diag = total_lift_and_drag;
             }
         },
     );
@@ -94,7 +83,7 @@ fn apply_aero_surface_lift_and_drag(
     ship_kinematics: &Kinematics,
     surface: &AeroSurface,
     child_transform: &Transform,
-) -> Option<(Vec3, Vec3)> {
+) -> Option<LiftAndDragMeasurement> {
     // World-space lever arm and orientation for this aerodynamic surface
     let arm = ship_kinematics.rotation * child_transform.translation;
     let surf_rot = ship_kinematics.rotation * child_transform.rotation;
@@ -110,7 +99,7 @@ fn apply_aero_surface_lift_and_drag(
     }
 
     let vel_dir = point_velocity / speed;
-    let dynamic_pressure = calculate_scalar_dynamic_pressure(air_density, speed);
+    let dynamic_pressure = air_density::calculate_scalar_dynamic_pressure(air_density, speed);
 
     // Angle of Attack (AoA) in the surface's local pitch plane
     let local_v = surf_rot.inverse() * point_velocity;
@@ -132,7 +121,10 @@ fn apply_aero_surface_lift_and_drag(
 
     forces.apply_force(total_surface_force);
     forces.apply_torque(arm.cross(total_surface_force));
-    Some((lift_force, drag_force))
+    Some(LiftAndDragMeasurement {
+        lift: lift_force,
+        drag: drag_force,
+    })
 }
 
 fn calculate_aerodynamic_coefficients(surface: &AeroSurface, aoa: f32) -> (f32, f32) {
@@ -151,20 +143,6 @@ fn calculate_aerodynamic_coefficients(surface: &AeroSurface, aoa: f32) -> (f32, 
     let cd = (1.0 - separation) * cd_attached + separation * cd_separated;
 
     (cl, cd)
-}
-
-/// Standard scalar dynamic pressure (q = 0.5 * rho * v^2) in Pascals (N/m^2).
-/// Used for continuous airflow across lifting surfaces.
-#[inline]
-fn calculate_scalar_dynamic_pressure(air_density: f32, speed: f32) -> f32 {
-    0.5 * air_density * speed.powi(2)
-}
-
-/// Signed, component-wise dynamic pressure per body axis (q_i = 0.5 * rho * v_i * |v_i|).
-/// Preserves directional sign along each local axis for bluff-body cross-flow drag.
-#[inline]
-fn calculate_component_dynamic_pressure(air_density: f32, local_velocity: Vec3) -> Vec3 {
-    0.5 * air_density * local_velocity * local_velocity.abs()
 }
 
 #[derive(Component, Reflect, Clone, Copy)]
@@ -194,7 +172,7 @@ pub fn apply_fuselage_drag(
     let local_v = ship_kinematics.rotation.inverse() * ship_kinematics.linear_velocity;
 
     // Component-wise dynamic pressure vector (X = side, Y = top, Z = axial)
-    let q_local = calculate_component_dynamic_pressure(air_density, local_v);
+    let q_local = air_density::calculate_component_dynamic_pressure(air_density, local_v);
 
     // Reference areas mapped to local axes (X: side, Y: top, Z: forward)
     let areas = Vec3::new(fuselage.side_area, fuselage.top_area, fuselage.forward_area);

@@ -1,4 +1,5 @@
 use crate::input::Action;
+use crate::ship::sensors::ThrustMeasurement;
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
@@ -60,12 +61,18 @@ pub(crate) fn handle_throttle(
 }
 
 pub fn apply_thrust(
-    mut ships: Query<(Forces, &Transform, &Children)>,
+    mut ships: Query<(
+        Forces,
+        &Transform,
+        &Children,
+        Option<&mut ThrustMeasurement>,
+    )>,
     thrusters: Query<(&Thrust, &Transform)>,
 ) {
-    for (mut forces, ship_transform, children) in ships.iter_mut() {
+    for (mut forces, ship_transform, children, thrust_diagnostic) in ships.iter_mut() {
         let ship_rot = ship_transform.rotation;
 
+        let mut total_thrust = Vec3::ZERO;
         for child in children.iter() {
             let Ok((thrust, thruster_transform)) = thrusters.get(child) else {
                 continue;
@@ -86,6 +93,12 @@ pub fn apply_thrust(
 
             forces.apply_force(thrust_force);
             forces.apply_torque(arm.cross(thrust_force));
+
+            total_thrust += thrust_force;
+        }
+
+        if let Some(mut thrust_measurement) = thrust_diagnostic {
+            *thrust_measurement = ThrustMeasurement(total_thrust);
         }
     }
 }

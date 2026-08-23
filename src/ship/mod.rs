@@ -6,15 +6,18 @@ use big_space::prelude::{BigSpace, CellCoord};
 use control_surface::{ControlSurfaceActuator, ControlSurfaceOrientation};
 
 mod aero;
+pub mod air_density;
 mod control_surface;
+pub mod sensors;
 mod thrust;
 mod thrust_fx;
 pub mod weapon;
 
 use crate::ship::aero::FuselageDrag;
 use crate::ship::control_surface::ControlSurfacePosition;
+use crate::ship::sensors::{FlightSensorData, LiftAndDragMeasurement, ThrustMeasurement};
 use crate::ship::weapon::RotaryGun;
-pub use aero::{AeroSurface, FlightTelemetry};
+pub use aero::AeroSurface;
 pub use thrust::Thrust;
 use thrust_fx::{ThrusterEffectHandle, ThrusterParticle};
 
@@ -23,9 +26,11 @@ pub struct ShipPlugin;
 /// Explicit simulation stages for ordering and parallelization
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
 pub enum FlightSet {
-    /// Stage 1: Process inputs, SAS damping, engine spooling, and actuator deflections
+    /// Gather sensor input to inform flight systems
+    Sense,
+    /// Process inputs, SAS damping, engine spooling, and actuator deflections
     Controls,
-    /// Stage 2: Calculate and apply aero forces, drag, and engine thrust
+    /// Calculate and apply aero forces, drag, and engine thrust
     Forces,
 }
 
@@ -52,25 +57,21 @@ impl Plugin for ShipPlugin {
         .add_systems(
             FixedUpdate,
             (
-                // Control surface chain (set -> update)
                 (
-                    control_surface::set_control_surface_targets,
-                    control_surface::update_control_surfaces,
+                    (sensors::update_flight_sensors,).in_set(FlightSet::Sense),
+                    // Control surface chain (set -> update)
+                    (
+                        control_surface::set_control_surface_targets,
+                        control_surface::update_control_surfaces,
+                    )
+                        .chain(),
+                    // Throttle spooling runs in parallel with control surface chain
+                    thrust::handle_throttle,
                 )
-                    .chain(),
-                // Throttle spooling runs in parallel with control surface chain
-                thrust::handle_throttle,
-            )
-                .in_set(FlightSet::Controls),
-        )
-        // 4. Stage 2: Apply forces
-        .add_systems(
-            FixedUpdate,
-            (
-                aero::calculate_aerodynamic_forces,
-                thrust::apply_thrust,
-            )
-                .in_set(FlightSet::Forces),
+                    .in_set(FlightSet::Controls),
+                (aero::calculate_aerodynamic_forces, thrust::apply_thrust)
+                    .in_set(FlightSet::Forces),
+            ),
         );
     }
 }
@@ -126,7 +127,11 @@ pub fn spawn_ship(
             Ship
             RotaryGun::default()
             Visibility::default()
-            FlightTelemetry::default()
+
+            FlightSensorData
+            LiftAndDragMeasurement
+            ThrustMeasurement
+
             template_value(LinearVelocity(Vec3::NEG_Z * 200.0))
             template_value(Position::from(initial_pos))
             Transform::from_translation(initial_pos)

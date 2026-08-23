@@ -1,5 +1,6 @@
-use crate::ship::FlightTelemetry;
 use bevy::prelude::*;
+use crate::ship::Player;
+use crate::ship::sensors::{FlightSensorData, LiftAndDragMeasurement, ThrustMeasurement};
 
 pub fn setup_telemetry(mut commands: Commands) {
     commands.spawn_scene(bsn! {
@@ -71,43 +72,41 @@ pub fn setup_telemetry(mut commands: Commands) {
 }
 
 pub fn update_telemetry(
-    telemetry_query: Query<&FlightTelemetry, Changed<FlightTelemetry>>,
+    telemetry_query: Single<(&FlightSensorData, &LiftAndDragMeasurement, &ThrustMeasurement), With<Player>>,
     mut text_query: Query<(&mut Text, &TelemetryField)>,
 ) {
-    let Ok(telemetry) = telemetry_query.single() else {
-        return;
-    };
+    let (sensors, LiftAndDragMeasurement{lift, drag}, ThrustMeasurement(thrust)) = *telemetry_query;
 
     for (mut text, field) in &mut text_query {
         text.0 = match field {
             TelemetryField::Speed => {
-                format!("Speed: {:.2} m/s", telemetry.linear_velocity.length())
+                format!("Speed: {:.2} m/s", sensors.true_airspeed)
             }
             TelemetryField::Thrust => {
-                format!("Thrust: {:.2} N", telemetry.thrust.length())
+                format!("Thrust: {:.2} N", thrust.length())
             }
             TelemetryField::Lift => {
-                format!("Lift: {:.2} N", telemetry.lift.length())
+                format!("Lift: {:.2} N", lift.length())
             }
             TelemetryField::Drag => {
-                format!("Drag: {:.2} N", telemetry.drag.length())
+                format!("Drag: {:.2} N", drag.length())
             }
             TelemetryField::AngleOfAttack => format!(
                 "AoA: {:.2} rad ({:.1}°)",
-                telemetry.angle_of_attack,
-                telemetry.angle_of_attack.to_degrees()
+                sensors.aoa,
+                sensors.aoa.to_degrees()
             ),
             TelemetryField::DynamicPressure => {
-                format!("Dyn Press: {:.2} Pa", telemetry.dynamic_pressure)
+                format!("Dyn Press: {:.2} Pa", sensors.dynamic_pressure)
             }
             TelemetryField::Rotation => {
-                format!("Rotation: {:.2} rad/s", telemetry.angular_velocity.length())
+                format!("Rotation: {:.2} rad/s", sensors.local_ang_vel.length())
             }
             TelemetryField::GForce => {
                 format!(
                     "Gs: {:.2}G Y: ({:.2}G)",
-                    telemetry.g_force.length(),
-                    telemetry.g_force.y
+                    sensors.g_force_local.length(),
+                    sensors.g_force_local.y
                 )
             }
         };

@@ -134,12 +134,15 @@ fn setup_celestial_bodies(
         ));
 
         // Ground Plane
+        let planet_mesh = Mesh::from(SphereMeshBuilder::new(
+            planet_radius,
+            SphereKind::Ico { subdivisions: 20 },
+        ));
+            let planet_collider = Collider::trimesh_from_mesh(&planet_mesh)
+        .expect("Failed to create trimesh collider from planet mesh");
         parent.spawn((
             Name::new("Planet"),
-            Mesh3d(meshes.add(Mesh::from(SphereMeshBuilder::new(
-                planet_radius,
-                SphereKind::Ico { subdivisions: 20 },
-            )))),
+            Mesh3d(meshes.add(planet_mesh)),
             MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: Color::srgb(0.1, 0.35, 0.15),
                 perceptual_roughness: 0.9,
@@ -148,7 +151,7 @@ fn setup_celestial_bodies(
             CellCoord::default(),
             Transform::from_xyz(0.0, -planet_radius, 0.0),
             RigidBody::Static,
-            Collider::sphere(planet_radius),
+            planet_collider,
         ));
     });
 }

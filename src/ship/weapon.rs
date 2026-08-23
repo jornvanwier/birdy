@@ -1,7 +1,7 @@
-use bevy::prelude::{Commands, Component, GlobalTransform, Query, Reflect, Res, Time};
-use leafwing_input_manager::action_state::ActionState;
 use crate::audio::FireGunEvent;
 use crate::input::Action;
+use bevy::prelude::{Commands, Component, GlobalTransform, Query, Reflect, Res, Time};
+use leafwing_input_manager::action_state::ActionState;
 
 /// Rotary gun physics & spool state
 #[derive(Component, Clone, Reflect)]

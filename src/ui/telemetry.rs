@@ -1,6 +1,6 @@
-use bevy::prelude::*;
 use crate::ship::Player;
 use crate::ship::sensors::{FlightSensorData, LiftAndDragMeasurement, ThrustMeasurement};
+use bevy::prelude::*;
 
 pub fn setup_telemetry(mut commands: Commands) {
     commands.spawn_scene(bsn! {
@@ -72,10 +72,18 @@ pub fn setup_telemetry(mut commands: Commands) {
 }
 
 pub fn update_telemetry(
-    telemetry_query: Single<(&FlightSensorData, &LiftAndDragMeasurement, &ThrustMeasurement), With<Player>>,
+    telemetry_query: Single<
+        (
+            &FlightSensorData,
+            &LiftAndDragMeasurement,
+            &ThrustMeasurement,
+        ),
+        With<Player>,
+    >,
     mut text_query: Query<(&mut Text, &TelemetryField)>,
 ) {
-    let (sensors, LiftAndDragMeasurement{lift, drag}, ThrustMeasurement(thrust)) = *telemetry_query;
+    let (sensors, LiftAndDragMeasurement { lift, drag }, ThrustMeasurement(thrust)) =
+        *telemetry_query;
 
     for (mut text, field) in &mut text_query {
         text.0 = match field {

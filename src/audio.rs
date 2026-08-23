@@ -87,7 +87,8 @@ fn generate_rotary_shot_variant(
 ) -> Box<dyn AudioUnit> {
     // A. Supersonic Muzzle Crack: Ultra-short initial snap (0-8ms)
     let crack_env = envelope(move |t: f64| (-t * 160.0).exp());
-    let crack = (white() | constant(crack_cutoff) | constant(2.0)) >> (bandpass() * crack_env * 2.6);
+    let crack =
+        (white() | constant(crack_cutoff) | constant(2.0)) >> (bandpass() * crack_env * 2.6);
 
     // B. Concussive Detonation Body: Low-mid shockwave punch
     let body_env = envelope(move |t: f64| (-t * decay_rate).exp());

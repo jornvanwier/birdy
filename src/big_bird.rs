@@ -1,8 +1,8 @@
 use avian3d::physics_transform::PhysicsTransformConfig;
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use big_space::prelude::*;
 use bevy_hanabi::prelude::*;
+use big_space::prelude::*;
 
 pub struct BigSpaceAvianSyncPlugin;
 

@@ -72,7 +72,9 @@ fn set_global_default_font(mut fonts: ResMut<Assets<Font>>) {
     let font = Font::from_bytes(FONT_DATA.to_vec());
 
     // Overwrite Bevy's default font handle
-    fonts.insert(&Handle::default(), font).expect("Failed to insert font");
+    fonts
+        .insert(&Handle::default(), font)
+        .expect("Failed to insert font");
 }
 
 fn setup_space(mut commands: Commands) {

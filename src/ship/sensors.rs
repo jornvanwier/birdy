@@ -32,7 +32,12 @@ pub struct FlightSensorData {
 
 pub fn update_flight_sensors(
     time: Res<Time>,
-    mut query: Query<(&Transform, &LinearVelocity, &AngularVelocity, &mut FlightSensorData)>,
+    mut query: Query<(
+        &Transform,
+        &LinearVelocity,
+        &AngularVelocity,
+        &mut FlightSensorData,
+    )>,
 ) {
     let dt = time.delta_secs();
     if dt <= 0.0 {

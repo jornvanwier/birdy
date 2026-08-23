@@ -113,7 +113,6 @@ fn sync_hanabi_floating_origin(
 
     let origin_delta = if let Some(prev) = last_cell.0 {
         if prev != *current_cell {
-            info!("Cell shift!");
             // Number of cells shifted in (X, Y, Z)
             let dx = (current_cell.x - prev.x) as f32;
             let dy = (current_cell.y - prev.y) as f32;

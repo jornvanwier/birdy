@@ -11,6 +11,7 @@ use avian3d::prelude::*;
 use bevy::audio::{AudioPlugin, Volume};
 use bevy::light::atmosphere::ScatteringMedium;
 use bevy::light::{Atmosphere, CascadeShadowConfigBuilder, VolumetricLight};
+use bevy::mesh::{SphereKind, SphereMeshBuilder};
 use bevy::prelude::*;
 use bevy_embedded_assets::{EmbeddedAssetPlugin, PluginMode};
 use bevy_hanabi::HanabiPlugin;
@@ -86,6 +87,7 @@ fn setup_space(mut commands: Commands) {
                         ..default()
                 }
                 .build())
+                CellCoord
                 template_value(Transform::from_xyz(10_000.0, 15_000.0, 10_000.0).looking_at(Vec3::ZERO, Vec3::Y))
             )
         ]
@@ -99,32 +101,41 @@ fn setup_celestial_bodies(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    // 1. Atmosphere
+    // Atmosphere
     let earth_medium = mediums.add(ScatteringMedium::earth(512, 512));
     let earth_atmosphere = Atmosphere::earth(earth_medium);
-    let planet_radius = earth_atmosphere.inner_radius;
+
+    let scale = 0.1;
+    let planet_radius = earth_atmosphere.inner_radius * scale;
 
     commands.entity(*space).with_children(|parent| {
         parent.spawn((
             Name::new("PlanetAtmosphere"),
             earth_atmosphere,
             CellCoord::default(),
-            Transform::from_xyz(0.0, -planet_radius, 0.0),
+            Transform::from_scale(Vec3::splat(scale)).with_translation(Vec3::new(
+                0.0,
+                -planet_radius,
+                0.0,
+            )),
         ));
 
-        // 3. Ground Plane
+        // Ground Plane
         parent.spawn((
-            Name::new("Ground"),
-            Mesh3d(meshes.add(Plane3d::new(Vec3::Y, Vec2::new(50_000.0, 50_000.0)))),
+            Name::new("Planet"),
+            Mesh3d(meshes.add(Mesh::from(SphereMeshBuilder::new(
+                planet_radius,
+                SphereKind::Ico { subdivisions: 20 },
+            )))),
             MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: Color::srgb(0.1, 0.35, 0.15),
                 perceptual_roughness: 0.9,
                 ..default()
             })),
             CellCoord::default(),
-            Transform::from_xyz(0.0, 0.0, 0.0),
+            Transform::from_xyz(0.0, -planet_radius, 0.0),
             RigidBody::Static,
-            Collider::half_space(Vec3::Y),
+            Collider::sphere(planet_radius),
         ));
     });
 }

@@ -77,6 +77,7 @@ pub fn create_input_map() -> InputMap<Action> {
         .with(Action::FullThrottle, GamepadButton::DPadRight)
         .with(Action::Fire, MouseButton::Left)
         .with(Action::Fire, GamepadButton::RightTrigger2)
+        .with(Action::Fire, KeyCode::Space)
 }
 
 fn spawn_joystick(mut commands: Commands, asset_server: Res<AssetServer>) {

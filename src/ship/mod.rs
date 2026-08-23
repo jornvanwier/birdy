@@ -77,6 +77,9 @@ impl Plugin for ShipPlugin {
 }
 
 #[derive(Component, Clone, Default)]
+pub struct Player;
+
+#[derive(Component, Clone, Default)]
 pub struct Ship;
 
 pub fn spawn_ship(
@@ -120,7 +123,7 @@ pub fn spawn_ship(
 
     let ship_id =commands
         .spawn_scene(bsn! {
-            Name::new("Player")
+            Player
             Ship
             RotaryGun::default()
             Visibility::default()

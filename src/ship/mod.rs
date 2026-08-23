@@ -67,8 +67,7 @@ impl Plugin for ShipPlugin {
         .add_systems(
             FixedUpdate,
             (
-                aero::calculate_aero_surface_forces,
-                aero::calculate_fuselage_drag,
+                aero::calculate_aerodynamic_forces,
                 thrust::apply_thrust,
             )
                 .in_set(FlightSet::Forces),
@@ -135,16 +134,13 @@ pub fn spawn_ship(
             template_value(RigidBody::Dynamic)
             Collider::cuboid(10.0, 3.5, 15.0)
             Mass(11_000.0)
+            FuselageDrag {
+                forward_area: 0.09,
+                side_area: 2.2,
+                top_area: 3.8,
+            }
 
             Children [
-                (
-                    FuselageDrag {
-                        forward_area: 0.09,
-                        side_area: 2.2,
-                        top_area: 3.8,
-                    }
-                ),
-
                 // --- MAIN WINGS ---
                 (
                     #LeftWing

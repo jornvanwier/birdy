@@ -1,8 +1,7 @@
-use crate::environment::celestial_body::{CelestialBody, ClosestBody};
+use crate::environment::celestial_body::ClosestBody;
 use bevy::light::Atmosphere;
 use bevy::light::atmosphere::ScatteringMedium;
 use bevy::prelude::*;
-use big_space::prelude::*;
 
 /// Standard scalar dynamic pressure (q = 0.5 * rho * v^2) in Pascals (N/m^2).
 /// Used for continuous airflow across lifting surfaces.
@@ -81,31 +80,3 @@ pub fn create_atmosphere(
 #[derive(Component, Default, Copy, Clone, Debug)]
 #[require(ClosestBody)]
 pub struct LocalAirDensity(pub f32);
-
-pub fn calculate_local_air_density(
-    grid: Single<&Grid, With<BigSpace>>,
-    mut locations: Query<(&mut LocalAirDensity, &ClosestBody, CellTransformReadOnly)>,
-    bodies: Query<(
-        &CelestialBody,
-        Option<&AtmosphereProperties>,
-        CellTransformReadOnly,
-    )>,
-) {
-    for (mut target, maybe_body, ship_transform) in locations.iter_mut() {
-        // Default to vacuum
-        target.0 = 0.0;
-
-        let Some(body_entity) = maybe_body.0 else {
-            continue;
-        };
-        let Ok((body, Some(atmosphere), body_transform)) = bodies.get(body_entity) else {
-            continue;
-        };
-
-        let ship_pos = grid.grid_position_double(ship_transform.cell, ship_transform.transform);
-        let body_pos = grid.grid_position_double(body_transform.cell, body_transform.transform);
-
-        let altitude = ship_pos.distance(body_pos) as f32 - body.radius;
-        target.0 = atmosphere.density_at_altitude(altitude);
-    }
-}

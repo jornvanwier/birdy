@@ -13,6 +13,23 @@ pub struct ClosestBody(pub Option<Entity>);
 #[derive(Component, Default, Debug, Clone)]
 pub struct CelestialBody {
     pub radius: f32,
+    /// Acceleration due to gravity at sea level (e.g., 9.81 for Earth, 3.72 for Mars)
+    pub surface_gravity: f32,
+}
+
+impl CelestialBody {
+    /// Calculates gravitational acceleration magnitude at distance `r` from body center.
+    /// Uses Newtonian inverse-square falloff: g(r) = g_0 * (R / r)^2
+    #[inline]
+    pub fn gravity_at_distance(&self, distance: f32) -> f32 {
+        if distance <= 0.0 {
+            return self.surface_gravity;
+        }
+        // Clamping to radius prevents runaway gravity if clipping into ground
+        let r = distance.max(self.radius);
+        let ratio = self.radius / r;
+        self.surface_gravity * (ratio * ratio)
+    }
 }
 
 pub fn determine_closest_celestial_body(
@@ -101,6 +118,7 @@ fn spawn_celestial_body<'a>(
         Name::new("Planet"),
         CelestialBody {
             radius: body_radius,
+            surface_gravity: 9.81,
         },
         Mesh3d(meshes.add(planet_mesh)),
         MeshMaterial3d(materials.add(StandardMaterial {

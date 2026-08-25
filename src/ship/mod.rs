@@ -12,7 +12,7 @@ mod thrust;
 mod thrust_fx;
 pub mod weapon;
 
-use crate::environment::{EnvironmentSet, LocalAirDensity, ClosestBody};
+use crate::environment::{CelestialBodyEnvironment, EnvironmentSet};
 use crate::ship::aero::FuselageDrag;
 use crate::ship::control_surface::ControlSurfacePosition;
 use crate::ship::sensors::{FlightSensorData, LiftAndDragMeasurement, ThrustMeasurement};
@@ -80,7 +80,12 @@ impl Plugin for ShipPlugin {
 pub struct Player;
 
 #[derive(Component, Clone, Default)]
-#[require(FlightSensorData, LocalAirDensity, ClosestBody, RigidBody::Dynamic, CellCoord)]
+#[require(
+    CelestialBodyEnvironment,
+    FlightSensorData,
+    RigidBody::Dynamic,
+    CellCoord
+)]
 pub struct Ship;
 
 pub fn spawn_ship(

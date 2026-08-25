@@ -1,5 +1,6 @@
 use crate::ship::Ship;
 use bevy::prelude::*;
+use crate::environment::PlanetaryFrame;
 
 const HUD_COLOR: Color = Color::srgb(0.2, 1.0, 0.4);
 const PITCH_PIXELS_PER_DEG: f32 = 8.0;
@@ -12,19 +13,27 @@ pub struct HudGizmos;
 
 pub fn draw_attitude_hud(
     mut gizmos: Gizmos<HudGizmos>,
-    ship_query: Query<&Transform, With<Ship>>,
+    ship_query: Query<(&Transform, &PlanetaryFrame), With<Ship>>,
     camera_query: Query<&Transform, (With<Camera3d>, Without<Ship>)>,
 ) {
-    let Ok(ship_transform) = ship_query.single() else {
+    let Ok((ship_transform, frame)) = ship_query.single() else {
         return;
     };
     let Ok(cam_transform) = camera_query.single() else {
         return;
     };
 
-    // Helper: projects 2D screen pixel coordinates to a plane 1 meter in front of the 3D camera
+    // 1. Transform ship rotation into local ground frame
+    let relative_rot = frame.rotation.inverse() * ship_transform.rotation;
+    let (yaw, pitch, roll) = relative_rot.to_euler(EulerRot::YXZ);
+
+    let bank = -roll;
+    let heading_deg = (-yaw).to_degrees().rem_euclid(360.0);
+    let hud_rot = Rot2::radians(bank);
+
+    // 2. Camera projection helper
     const HUD_DISTANCE: f32 = 1.0;
-    const PIXEL_SCALE: f32 = 0.0013; // Scales pixel units to fit within camera FOV
+    const PIXEL_SCALE: f32 = 0.0013;
     let to_world = |p: Vec2| -> Vec3 {
         cam_transform.transform_point(Vec3::new(
             p.x * PIXEL_SCALE,
@@ -33,22 +42,10 @@ pub fn draw_attitude_hud(
         ))
     };
 
-    // 1. Decompose rotation into Euler angles
-    let (yaw, pitch, roll) = ship_transform.rotation.to_euler(EulerRot::YXZ);
-    let bank = -roll;
-    let heading_deg = (-yaw).to_degrees().rem_euclid(360.0);
-    let hud_rot = Rot2::radians(bank);
-
-    // 2. Center Reticle
+    // 3. Draw HUD elements
     draw_boresight(&mut gizmos, &to_world, cam_transform);
-
-    // 3. Artificial Horizon & Pitch Ladder
     draw_pitch_ladder(&mut gizmos, &to_world, pitch, hud_rot);
-
-    // 4. Roll / Bank Indicator (Sky Pointer)
     draw_roll_indicator(&mut gizmos, &to_world, bank);
-
-    // 5. Yaw / Heading Tape (Top of HUD)
     draw_heading_tape(&mut gizmos, &to_world, heading_deg);
 }
 

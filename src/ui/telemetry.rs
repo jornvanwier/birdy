@@ -11,7 +11,7 @@ pub fn setup_telemetry(mut commands: Commands) {
             position_type: PositionType::Absolute,
             top: px(10.0),
             right: px(10.0),
-            width: px(220.0),
+            width: px(230.0),
             flex_direction: FlexDirection::Column,
             row_gap: px(4.0),
             padding: UiRect::all(px(8.0)),

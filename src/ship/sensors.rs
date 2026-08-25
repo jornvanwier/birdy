@@ -20,8 +20,6 @@ pub struct FlightSensorData {
     pub g_force_local: Vec3,
     /// Angular velocity in body local axes (Pitch, Roll, Yaw rates)
     pub local_ang_vel: Vec3,
-    /// Altitude above sea level in meters
-    pub altitude: f32,
     /// Vertical climb/descent rate in m/s
     pub vertical_speed: f32,
 
@@ -30,12 +28,17 @@ pub struct FlightSensorData {
     pub(crate) prev_linear_velocity: Vec3,
 }
 
+use crate::environment::{LocalAirDensity, LocalGravity, PlanetaryFrame, gravity};
+
 pub fn update_flight_sensors(
     time: Res<Time>,
     mut query: Query<(
         &Transform,
         &LinearVelocity,
         &AngularVelocity,
+        &LocalAirDensity,
+        &LocalGravity,
+        &PlanetaryFrame,
         &mut FlightSensorData,
     )>,
 ) {
@@ -44,32 +47,28 @@ pub fn update_flight_sensors(
         return;
     }
 
-    let air_density = 1.225; // kg/m^3 (or sample from atmosphere altitude)
-    let gravity = Vec3::new(0.0, -9.81, 0.0);
-
-    for (transform, lin_vel, ang_vel, mut air_data) in query.iter_mut() {
+    for (transform, lin_vel, ang_vel, air_density, local_gravity, frame, mut air_data) in
+        query.iter_mut()
+    {
         let rot = transform.rotation;
         let v_world = lin_vel.0;
         let speed = v_world.length();
 
-        // Transform velocities into aircraft body frame (-Z Forward, Y Up, X Right)
         let v_body = rot.inverse() * v_world;
         let omega_body = rot.inverse() * ang_vel.0;
 
-        // Kinematic angles
-        // AoA = pitch plane angle between forward (-Z) and up (Y)
         let aoa = (-v_body.y).atan2(-v_body.z);
-        // Sideslip = yaw plane angle between forward (-Z) and right (X)
         let beta = v_body.x.atan2(-v_body.z);
+        let q = calculate_scalar_dynamic_pressure(air_density.0, speed);
 
-        // Dynamic pressure
-        let q = calculate_scalar_dynamic_pressure(air_density, speed);
-
-        // Calculate accelerometer-felt G-Force: (a_inertial - g) / 9.81
+        // Accelerometer load factor (G-force)
         let a_world = (v_world - air_data.prev_linear_velocity) / dt;
-        let felt_accel_world = a_world - gravity;
+        let felt_accel_world = a_world - local_gravity.0;
         let felt_accel_local = rot.inverse() * felt_accel_world;
-        let g_force_local = felt_accel_local / gravity.y;
+        let g_force_local = felt_accel_local / gravity::STANDARD_G;
+
+        // Local Up from surface rotation (+Y in local ground frame)
+        let local_up = frame.rotation * Vec3::Y;
 
         air_data.prev_linear_velocity = v_world;
         air_data.true_airspeed = speed;
@@ -78,10 +77,7 @@ pub fn update_flight_sensors(
         air_data.sideslip = if speed > 1.0 { beta } else { 0.0 };
         air_data.local_ang_vel = omega_body;
         air_data.g_force_local = g_force_local;
-
-        // TODO calculate wrt to current body
-        air_data.altitude = transform.translation.y;
-        air_data.vertical_speed = v_world.y;
+        air_data.vertical_speed = v_world.dot(local_up);
     }
 }
 

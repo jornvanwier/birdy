@@ -6,6 +6,7 @@ use bevy::mesh::{SphereKind, SphereMeshBuilder};
 use bevy::prelude::*;
 use big_space::prelude::*;
 use big_space::world_query::CellTransformReadOnlyItem;
+use crate::environment::gravity;
 
 #[derive(Component, Default, Debug, Clone)]
 pub struct ClosestBody(pub Option<Entity>);
@@ -88,13 +89,12 @@ pub fn setup_celestial_bodies(
             body_transform,
         );
 
-        spawn_atmosphere(
+        insert_atmosphere(
             &mut body_entity_commands,
             body_radius,
             atmosphere_height,
             sea_level_density,
             atmos_ground_albedo,
-            body_transform,
             earth_medium,
         );
     });
@@ -118,7 +118,7 @@ fn spawn_celestial_body<'a>(
         Name::new("Planet"),
         CelestialBody {
             radius: body_radius,
-            surface_gravity: 9.81,
+            surface_gravity: gravity::STANDARD_G,
         },
         Mesh3d(meshes.add(planet_mesh)),
         MeshMaterial3d(materials.add(StandardMaterial {
@@ -133,13 +133,12 @@ fn spawn_celestial_body<'a>(
     ))
 }
 
-fn spawn_atmosphere(
+fn insert_atmosphere(
     body_entity_commands: &mut EntityCommands,
     body_radius: f32,
     atmosphere_height: f32,
     sea_level_density: f32,
     atmos_ground_albedo: Vec3,
-    planet_transform: Transform,
     earth_medium: Handle<ScatteringMedium>,
 ) {
     let (render_atmosphere, atmosphere_properties) = create_atmosphere(
@@ -150,10 +149,7 @@ fn spawn_atmosphere(
         earth_medium,
     );
     body_entity_commands.insert((
-        Name::new("PlanetAtmosphere"),
         render_atmosphere,
         atmosphere_properties,
-        CellCoord::default(),
-        planet_transform,
     ));
 }

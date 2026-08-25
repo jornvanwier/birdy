@@ -3,6 +3,7 @@ use crate::ship::Player;
 use crate::ship::sensors::{FlightSensorData, LiftAndDragMeasurement, ThrustMeasurement};
 use bevy::prelude::*;
 use big_space::prelude::CellCoord;
+use crate::environment::{Altitude, LocalGravity};
 
 pub fn setup_telemetry(mut commands: Commands) {
     commands.spawn_scene(bsn! {
@@ -31,6 +32,8 @@ pub fn setup_telemetry(mut commands: Commands) {
             telemetry_field(TelemetryField::DynamicPressure),
             telemetry_field(TelemetryField::Rotation),
             telemetry_field(TelemetryField::GForce),
+            telemetry_field(TelemetryField::Gravity),
+            telemetry_field(TelemetryField::Altitude),
             telemetry_field(TelemetryField::LocalPosition),
             telemetry_field(TelemetryField::CellPosition),
         ]
@@ -53,6 +56,8 @@ pub fn update_telemetry(
             &LiftAndDragMeasurement,
             &ThrustMeasurement,
             &LocalAirDensity,
+            &LocalGravity,
+            &Altitude,
             &Transform,
             &CellCoord,
         ),
@@ -65,6 +70,8 @@ pub fn update_telemetry(
         LiftAndDragMeasurement { lift, drag },
         ThrustMeasurement(thrust),
         air_density,
+        gravity,
+        altitude,
         transform,
         cell,
     ) = *telemetry_query;
@@ -103,15 +110,21 @@ pub fn update_telemetry(
             }
             TelemetryField::LocalPosition => {
                 format!(
-                    "@ {:.2},{:.2},{:.2}",
+                    "@: {:.2},{:.2},{:.2}",
                     transform.translation.x, transform.translation.y, transform.translation.z
                 )
             }
             TelemetryField::CellPosition => {
-                format!("# {},{},{}", cell.x, cell.y, cell.z)
+                format!("#: {},{},{}", cell.x, cell.y, cell.z)
             }
             TelemetryField::AirDensity => {
-                format!("{} kg/m^3", air_density.0)
+                format!("ρ: {:.2} kg/m^3", air_density.0)
+            }
+            TelemetryField::Gravity => {
+                format!("g: {:.2} m/s^2", gravity.0.length())
+            }
+            TelemetryField::Altitude => {
+                format!("Alt.: {:.2} m", altitude.0)
             }
         };
     }
@@ -129,6 +142,8 @@ pub enum TelemetryField {
     DynamicPressure,
     Rotation,
     GForce,
+    Gravity,
+    Altitude,
     LocalPosition,
     CellPosition,
     AirDensity,

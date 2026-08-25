@@ -1,6 +1,6 @@
 use crate::camera;
 use crate::environment::air_density::AtmosphereProperties;
-use crate::environment::gravity::{LocalGravity, apply_local_gravity};
+pub(crate) use crate::environment::gravity::{LocalGravity, apply_local_gravity};
 use bevy::light::{CascadeShadowConfigBuilder, VolumetricLight};
 use bevy::prelude::*;
 use big_space::prelude::*;
@@ -8,7 +8,7 @@ use big_space::prelude::*;
 pub mod air_density;
 pub mod celestial_body;
 pub mod clouds;
-mod gravity;
+pub mod gravity;
 
 use crate::environment::celestial_body::determine_closest_celestial_body;
 pub use air_density::LocalAirDensity;

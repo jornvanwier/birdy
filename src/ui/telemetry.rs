@@ -1,3 +1,4 @@
+use crate::environment::air_density::LocalAirDensity;
 use crate::ship::Player;
 use crate::ship::sensors::{FlightSensorData, LiftAndDragMeasurement, ThrustMeasurement};
 use bevy::prelude::*;
@@ -26,6 +27,7 @@ pub fn setup_telemetry(mut commands: Commands) {
             telemetry_field(TelemetryField::Lift),
             telemetry_field(TelemetryField::Drag),
             telemetry_field(TelemetryField::AngleOfAttack),
+            telemetry_field(TelemetryField::AirDensity),
             telemetry_field(TelemetryField::DynamicPressure),
             telemetry_field(TelemetryField::Rotation),
             telemetry_field(TelemetryField::GForce),
@@ -50,6 +52,7 @@ pub fn update_telemetry(
             &FlightSensorData,
             &LiftAndDragMeasurement,
             &ThrustMeasurement,
+            &LocalAirDensity,
             &Transform,
             &CellCoord,
         ),
@@ -61,6 +64,7 @@ pub fn update_telemetry(
         sensors,
         LiftAndDragMeasurement { lift, drag },
         ThrustMeasurement(thrust),
+        air_density,
         transform,
         cell,
     ) = *telemetry_query;
@@ -98,10 +102,16 @@ pub fn update_telemetry(
                 )
             }
             TelemetryField::LocalPosition => {
-                format!("@ {:.2},{:.2},{:.2}", transform.translation.x, transform.translation.y, transform.translation.z)
+                format!(
+                    "@ {:.2},{:.2},{:.2}",
+                    transform.translation.x, transform.translation.y, transform.translation.z
+                )
             }
             TelemetryField::CellPosition => {
                 format!("# {},{},{}", cell.x, cell.y, cell.z)
+            }
+            TelemetryField::AirDensity => {
+                format!("{} kg/m^3", air_density.0)
             }
         };
     }
@@ -121,4 +131,5 @@ pub enum TelemetryField {
     GForce,
     LocalPosition,
     CellPosition,
+    AirDensity,
 }

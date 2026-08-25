@@ -6,13 +6,13 @@ use big_space::prelude::{BigSpace, CellCoord};
 use control_surface::{ControlSurfaceActuator, ControlSurfaceOrientation};
 
 mod aero;
-pub mod air_density;
 mod control_surface;
 pub mod sensors;
 mod thrust;
 mod thrust_fx;
 pub mod weapon;
 
+use crate::environment::{EnvironmentSet, LocalAirDensity, ClosestBody};
 use crate::ship::aero::FuselageDrag;
 use crate::ship::control_surface::ControlSurfacePosition;
 use crate::ship::sensors::{FlightSensorData, LiftAndDragMeasurement, ThrustMeasurement};
@@ -39,13 +39,13 @@ impl Plugin for ShipPlugin {
         // 1. Configure stage ordering in FixedUpdate
         app.configure_sets(
             FixedUpdate,
-            (FlightSet::Controls, FlightSet::Forces).chain(),
+            (FlightSet::Sense, FlightSet::Controls, FlightSet::Forces)
+                .after(EnvironmentSet)
+                .chain(),
         )
         .add_systems(
             Startup,
-            (thrust_fx::setup_thruster_effect, spawn_ship)
-                .chain()
-                .after(crate::setup_space),
+            (thrust_fx::setup_thruster_effect, spawn_ship).chain(),
         )
         .add_systems(
             Update,
@@ -57,8 +57,8 @@ impl Plugin for ShipPlugin {
         .add_systems(
             FixedUpdate,
             (
+                (sensors::update_flight_sensors,).in_set(FlightSet::Sense),
                 (
-                    (sensors::update_flight_sensors,).in_set(FlightSet::Sense),
                     // Control surface chain (set -> update)
                     (
                         control_surface::set_control_surface_targets,
@@ -80,6 +80,7 @@ impl Plugin for ShipPlugin {
 pub struct Player;
 
 #[derive(Component, Clone, Default)]
+#[require(FlightSensorData, LocalAirDensity, ClosestBody, RigidBody::Dynamic, CellCoord)]
 pub struct Ship;
 
 pub fn spawn_ship(
@@ -128,15 +129,12 @@ pub fn spawn_ship(
             RotaryGun::default()
             Visibility::default()
 
-            FlightSensorData
             LiftAndDragMeasurement
             ThrustMeasurement
 
             template_value(LinearVelocity(Vec3::NEG_Z * 200.0))
             template_value(Position::from(initial_pos))
             Transform::from_translation(initial_pos)
-            CellCoord::default()
-            template_value(RigidBody::Dynamic)
             Collider::cuboid(10.0, 3.5, 15.0)
             Mass(11_000.0)
             FuselageDrag {

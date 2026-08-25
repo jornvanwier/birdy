@@ -53,7 +53,7 @@ pub fn write_avian_pos(
     for (cell, transform, mut pos, mut rot, rb) in query.iter_mut() {
         // Skip dynamic bodies that are currently being actively simulated
         // unless they were just added to the world
-        let is_kinematic_or_static = rb.map_or(true, |r| !r.is_dynamic());
+        let is_kinematic_or_static = rb.is_none_or(|r| !r.is_dynamic());
         if !is_kinematic_or_static {
             continue; // Do not overwrite actively simulated dynamic bodies
         }

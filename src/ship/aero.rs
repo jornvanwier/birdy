@@ -1,8 +1,9 @@
-use crate::ship::air_density;
+use crate::environment::air_density;
 use crate::ship::sensors::LiftAndDragMeasurement;
 use avian3d::prelude::forces::ForcesItem;
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use crate::environment::air_density::LocalAirDensity;
 
 #[derive(Component, Reflect, Default, Clone, Copy)]
 pub struct AeroSurface {
@@ -29,15 +30,14 @@ pub fn calculate_aerodynamic_forces(
         Forces,
         &Transform,
         &FuselageDrag,
+        &LocalAirDensity,
         &Children,
         Option<&mut LiftAndDragMeasurement>,
     )>,
     surfaces: Query<(&AeroSurface, &Transform)>,
 ) {
-    let air_density = 1.225; // kg/m^3
-
     ships.par_iter_mut().for_each(
-        |(mut forces, ship_transform, fuselage, children, lift_and_drag_diagnostic)| {
+        |(mut forces, ship_transform, fuselage, air_density, children, lift_and_drag_diagnostic)| {
             let ship_kinematics = Kinematics {
                 rotation: ship_transform.rotation,
                 linear_velocity: forces.linear_velocity(),
@@ -55,7 +55,7 @@ pub fn calculate_aerodynamic_forces(
                 };
 
                 if let Some(values) = apply_aero_surface_lift_and_drag(
-                    air_density,
+                    air_density.0,
                     &mut forces,
                     &ship_kinematics,
                     surface,
@@ -66,7 +66,7 @@ pub fn calculate_aerodynamic_forces(
             }
 
             let fuselage_drag =
-                apply_fuselage_drag(fuselage, &ship_kinematics, air_density, &mut forces);
+                apply_fuselage_drag(fuselage, &ship_kinematics, air_density.0, &mut forces);
 
             total_lift_and_drag.drag += fuselage_drag;
 

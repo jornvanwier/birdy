@@ -10,7 +10,7 @@ pub struct CloudsPlugin;
 
 impl Plugin for CloudsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_clouds.after(crate::setup_space));
+        app.add_systems(Startup, spawn_clouds);
     }
 }
 

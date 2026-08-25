@@ -1,4 +1,4 @@
-use crate::ship::air_density::calculate_scalar_dynamic_pressure;
+use crate::environment::air_density::calculate_scalar_dynamic_pressure;
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use std::ops::AddAssign;

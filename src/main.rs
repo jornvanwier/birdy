@@ -1,17 +1,14 @@
 mod audio;
 mod big_bird;
 mod camera;
-mod clouds;
 mod debug;
+pub mod environment;
 mod input;
 mod ship;
 mod ui;
 
 use avian3d::prelude::*;
 use bevy::audio::{AudioPlugin, Volume};
-use bevy::light::atmosphere::ScatteringMedium;
-use bevy::light::{Atmosphere, CascadeShadowConfigBuilder, VolumetricLight};
-use bevy::mesh::{SphereKind, SphereMeshBuilder};
 use bevy::prelude::*;
 use bevy_embedded_assets::{EmbeddedAssetPlugin, PluginMode};
 use bevy_hanabi::HanabiPlugin;
@@ -52,16 +49,15 @@ fn main() {
             big_bird::BigSpaceHanabiSyncPlugin,
             EntropyPlugin::<WyRand>::default(),
             HanabiPlugin,
+            environment::EnvironmentPlugin,
             audio::ProceduralAudioPlugin,
             input::InputPlugin,
             ship::ShipPlugin,
             ui::HudPlugin,
             camera::ChaseCameraPlugin,
-            clouds::CloudsPlugin,
             debug::DebugPlugin,
         ))
         .add_systems(PreStartup, set_global_default_font)
-        .add_systems(Startup, (setup_space, setup_celestial_bodies).chain())
         .run();
 }
 
@@ -75,83 +71,4 @@ fn set_global_default_font(mut fonts: ResMut<Assets<Font>>) {
     fonts
         .insert(&Handle::default(), font)
         .expect("Failed to insert font");
-}
-
-fn setup_space(mut commands: Commands) {
-    commands.spawn_scene(bsn! {
-        BigSpace
-        Grid
-        Visibility::Visible
-        Children [
-            camera::camera_scene(),
-
-            (
-                #Sun
-                DirectionalLight {
-                    illuminance: 120_000.0,
-                    shadow_maps_enabled: true,
-                }
-                VolumetricLight
-                template_value(CascadeShadowConfigBuilder {
-                    num_cascades: 4,
-                    minimum_distance: 0.5,
-                    maximum_distance: 10_000.0,
-                    first_cascade_far_bound: 100.0,
-                        ..default()
-                }
-                .build())
-                CellCoord
-                template_value(Transform::from_xyz(10_000.0, 15_000.0, 10_000.0).looking_at(Vec3::ZERO, Vec3::Y))
-            )
-        ]
-    });
-}
-
-fn setup_celestial_bodies(
-    mut commands: Commands,
-    space: Single<Entity, With<BigSpace>>,
-    mut mediums: ResMut<Assets<ScatteringMedium>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    // Atmosphere
-    let earth_medium = mediums.add(ScatteringMedium::earth(512, 512));
-    let earth_atmosphere = Atmosphere::earth(earth_medium);
-
-    let scale = 0.1;
-    let planet_radius = earth_atmosphere.inner_radius * scale;
-
-    commands.entity(*space).with_children(|parent| {
-        parent.spawn((
-            Name::new("PlanetAtmosphere"),
-            earth_atmosphere,
-            CellCoord::default(),
-            Transform::from_scale(Vec3::splat(scale)).with_translation(Vec3::new(
-                0.0,
-                -planet_radius,
-                0.0,
-            )),
-        ));
-
-        // Ground Plane
-        let planet_mesh = Mesh::from(SphereMeshBuilder::new(
-            planet_radius,
-            SphereKind::Ico { subdivisions: 20 },
-        ));
-            let planet_collider = Collider::trimesh_from_mesh(&planet_mesh)
-        .expect("Failed to create trimesh collider from planet mesh");
-        parent.spawn((
-            Name::new("Planet"),
-            Mesh3d(meshes.add(planet_mesh)),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgb(0.1, 0.35, 0.15),
-                perceptual_roughness: 0.9,
-                ..default()
-            })),
-            CellCoord::default(),
-            Transform::from_xyz(0.0, -planet_radius, 0.0),
-            RigidBody::Static,
-            planet_collider,
-        ));
-    });
 }

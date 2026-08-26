@@ -81,28 +81,24 @@ pub fn read_avian_pos(
 // Hanabi Particle Sync
 // -----------------------------------------------------------------------------
 
-#[derive(Resource, Default)]
-struct LastHanabiOriginCell(Option<CellCoord>);
-
 pub struct BigSpaceHanabiSyncPlugin;
 
 impl Plugin for BigSpaceHanabiSyncPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<LastHanabiOriginCell>()
-            .add_systems(PostUpdate, sync_hanabi_floating_origin);
+        app.add_systems(PostUpdate, sync_hanabi_floating_origin);
     }
 }
 
 fn sync_hanabi_floating_origin(
     grid: Single<&Grid, With<BigSpace>>,
     origin_query: Single<&CellCoord, With<FloatingOrigin>>,
-    mut last_cell: ResMut<LastHanabiOriginCell>,
+    mut last_cell: Local<Option<CellCoord>>,
     mut effect_query: Query<&mut EffectProperties>,
 ) {
     let current_cell = *origin_query;
     let edge_len = grid.cell_edge_length();
 
-    let origin_delta = if let Some(prev) = last_cell.0 {
+    let origin_delta = if let Some(prev) = *last_cell {
         if prev != *current_cell {
             let dx = (current_cell.x - prev.x) as f32;
             let dy = (current_cell.y - prev.y) as f32;
@@ -116,11 +112,9 @@ fn sync_hanabi_floating_origin(
         Vec3::ZERO
     };
 
-    last_cell.0 = Some(*current_cell);
+    *last_cell = Some(*current_cell);
 
-    if origin_delta != Vec3::ZERO {
-        for mut properties in effect_query.iter_mut() {
-            properties.set("origin_delta", origin_delta.into());
-        }
+    for mut properties in effect_query.iter_mut() {
+        properties.set("origin_delta", origin_delta.into());
     }
 }

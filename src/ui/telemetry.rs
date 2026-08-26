@@ -1,3 +1,4 @@
+use avian3d::prelude::Position;
 use crate::environment::air_density::LocalAirDensity;
 use crate::ship::Player;
 use crate::ship::sensors::{FlightSensorData, LiftAndDragMeasurement, ThrustMeasurement};
@@ -35,6 +36,7 @@ pub fn setup_telemetry(mut commands: Commands) {
             telemetry_field(TelemetryField::Gravity),
             telemetry_field(TelemetryField::Altitude),
             telemetry_field(TelemetryField::LocalPosition),
+            telemetry_field(TelemetryField::PhysicsPosition),
             telemetry_field(TelemetryField::CellPosition),
         ]
     });
@@ -58,6 +60,7 @@ pub fn update_telemetry(
             &LocalAirDensity,
             &LocalGravity,
             &Altitude,
+            &Position,
             &Transform,
             &CellCoord,
         ),
@@ -72,6 +75,7 @@ pub fn update_telemetry(
         air_density,
         gravity,
         altitude,
+        position,
         transform,
         cell,
     ) = *telemetry_query;
@@ -114,6 +118,12 @@ pub fn update_telemetry(
                     transform.translation.x, transform.translation.y, transform.translation.z
                 )
             }
+            TelemetryField::PhysicsPosition => {
+                format!(
+                    "%: {:.2},{:.2},{:.2}",
+                    position.x, position.y, position.z
+                )
+            }
             TelemetryField::CellPosition => {
                 format!("#: {},{},{}", cell.x, cell.y, cell.z)
             }
@@ -144,6 +154,7 @@ pub enum TelemetryField {
     GForce,
     Gravity,
     Altitude,
+    PhysicsPosition,
     LocalPosition,
     CellPosition,
     AirDensity,

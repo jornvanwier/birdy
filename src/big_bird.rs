@@ -8,19 +8,19 @@ pub struct BigSpaceAvianSyncPlugin;
 
 impl Plugin for BigSpaceAvianSyncPlugin {
     fn build(&self, app: &mut App) {
-        // Disable Avian's default transform hooks
+        // Disable Avian's default transform sync to manage it with big_space
         app.insert_resource(PhysicsTransformConfig {
             propagate_before_physics: false,
             transform_to_position: false,
             position_to_transform: false,
             transform_to_collider_scale: true,
         })
-        // Before physics runs: update Avian from newly spawned or kinematic transforms
+        // 1. Before physics runs: align Avian Position with big_space relative to the current origin
         .add_systems(
             FixedPostUpdate,
             write_avian_pos.before(PhysicsSystems::Prepare),
         )
-        // After physics runs: update big_space transforms from Avian simulation
+        // 2. After physics runs: write simulated positions back to big_space
         .add_systems(
             FixedPostUpdate,
             read_avian_pos.after(PhysicsSystems::StepSimulation),
@@ -29,75 +29,66 @@ impl Plugin for BigSpaceAvianSyncPlugin {
 }
 
 /// big_space -> Avian (Write)
-/// Updates Avian's Position/Rotation when an entity is newly spawned
-/// or when Kinematic/Static bodies are moved in Bevy.
+/// Syncs entities into Avian's local space relative to the FloatingOrigin cell.
 pub fn write_avian_pos(
     grid: Single<&Grid, With<BigSpace>>,
-    mut query: Query<
-        (
-            &CellCoord,
-            &Transform,
-            &mut Position,
-            &mut Rotation,
-            Option<&RigidBody>,
-        ),
-        Or<(
-            Added<RigidBody>,
-            (With<RigidBody>, Changed<Transform>),
-            (With<RigidBody>, Changed<CellCoord>),
-        )>,
-    >,
+    origin_query: Single<&CellCoord, With<FloatingOrigin>>,
+    mut query: Query<(&CellCoord, &Transform, &mut Position, &mut Rotation)>,
 ) {
     let edge_len = grid.cell_edge_length();
+    let origin_cell = *origin_query;
 
-    for (cell, transform, mut pos, mut rot, rb) in query.iter_mut() {
-        // Skip dynamic bodies that are currently being actively simulated
-        // unless they were just added to the world
-        let is_kinematic_or_static = rb.is_none_or(|r| !r.is_dynamic());
-        if !is_kinematic_or_static {
-            continue; // Do not overwrite actively simulated dynamic bodies
-        }
+    for (cell, transform, mut pos, mut rot) in query.iter_mut() {
+        // Compute continuous position relative to the FloatingOrigin cell
+        let dx = (cell.x - origin_cell.x) as f32;
+        let dy = (cell.y - origin_cell.y) as f32;
+        let dz = (cell.z - origin_cell.z) as f32;
+        let relative_cell_offset = Vec3::new(dx * edge_len, dy * edge_len, dz * edge_len);
+        let target_pos = relative_cell_offset + transform.translation;
 
-        // Reconstruct continuous world position from CellCoord + local Transform
-        let cell_offset = Vec3::new(
-            cell.x as f32 * edge_len,
-            cell.y as f32 * edge_len,
-            cell.z as f32 * edge_len,
-        );
-        let world_position = cell_offset + transform.translation;
-
-        pos.0 = world_position;
+        // Kinematic/static bodies (or newly spawned dynamic bodies) always sync from Transform.
+        // For actively simulated dynamic bodies, setting pos.0 here re-centers them if the
+        // origin cell hopped between frames without resetting their physics velocities.
+        pos.0 = target_pos;
         rot.0 = transform.rotation;
     }
 }
 
 /// Avian -> big_space (Read)
-/// Reads simulated dynamic physics from Avian and updates big_space (CellCoord + Transform).
+/// Reads simulated dynamic physics and updates big_space (CellCoord + Transform).
 pub fn read_avian_pos(
     grid: Single<&Grid, With<BigSpace>>,
-    mut query: Query<
-        (&Position, &Rotation, &mut CellCoord, &mut Transform),
-        (With<RigidBody>, Without<FloatingOrigin>),
-    >,
+    origin_query: Single<&CellCoord, (With<FloatingOrigin>, Without<RigidBody>)>,
+    mut query: Query<(&Position, &Rotation, &mut CellCoord, &mut Transform), With<RigidBody>>,
 ) {
-    for (pos, rot, mut cell, mut transform) in query.iter_mut() {
-        // Deconstruct continuous Avian position into CellCoord + local Transform offset
-        let (new_cell, new_translation) = grid.imprecise_translation_to_grid(pos.0);
+    let origin_cell = *origin_query;
 
-        *cell = new_cell;
+    for (pos, rot, mut cell, mut transform) in query.iter_mut() {
+        // pos.0 is relative to origin_cell: decompose it into (cell_delta, local_translation)
+        let (delta_cell, new_translation) = grid.imprecise_translation_to_grid(pos.0);
+
+        *cell = CellCoord {
+            x: origin_cell.x + delta_cell.x,
+            y: origin_cell.y + delta_cell.y,
+            z: origin_cell.z + delta_cell.z,
+        };
         transform.translation = new_translation;
         transform.rotation = rot.0;
     }
 }
 
+// -----------------------------------------------------------------------------
+// Hanabi Particle Sync
+// -----------------------------------------------------------------------------
+
 #[derive(Resource, Default)]
-struct LastOriginCell(Option<CellCoord>);
+struct LastHanabiOriginCell(Option<CellCoord>);
 
 pub struct BigSpaceHanabiSyncPlugin;
 
 impl Plugin for BigSpaceHanabiSyncPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<LastOriginCell>()
+        app.init_resource::<LastHanabiOriginCell>()
             .add_systems(PostUpdate, sync_hanabi_floating_origin);
     }
 }
@@ -105,7 +96,7 @@ impl Plugin for BigSpaceHanabiSyncPlugin {
 fn sync_hanabi_floating_origin(
     grid: Single<&Grid, With<BigSpace>>,
     origin_query: Single<&CellCoord, With<FloatingOrigin>>,
-    mut last_cell: ResMut<LastOriginCell>,
+    mut last_cell: ResMut<LastHanabiOriginCell>,
     mut effect_query: Query<&mut EffectProperties>,
 ) {
     let current_cell = *origin_query;
@@ -113,12 +104,10 @@ fn sync_hanabi_floating_origin(
 
     let origin_delta = if let Some(prev) = last_cell.0 {
         if prev != *current_cell {
-            // Number of cells shifted in (X, Y, Z)
             let dx = (current_cell.x - prev.x) as f32;
             let dy = (current_cell.y - prev.y) as f32;
             let dz = (current_cell.z - prev.z) as f32;
 
-            // Invert vector: world coordinates move opposite to cell coordinate index hop
             -Vec3::new(dx * edge_len, dy * edge_len, dz * edge_len)
         } else {
             Vec3::ZERO
@@ -129,8 +118,9 @@ fn sync_hanabi_floating_origin(
 
     last_cell.0 = Some(*current_cell);
 
-    // Apply origin_delta to all active particle effects
-    for mut properties in effect_query.iter_mut() {
-        properties.set("origin_delta", origin_delta.into());
+    if origin_delta != Vec3::ZERO {
+        for mut properties in effect_query.iter_mut() {
+            properties.set("origin_delta", origin_delta.into());
+        }
     }
 }

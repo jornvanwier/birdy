@@ -78,7 +78,7 @@ pub fn setup_space(mut commands: Commands) {
                 }
                 .build())
                 CellCoord
-                template_value(Transform::from_xyz(10_000.0, 15_000.0, 10_000.0).looking_at(Vec3::ZERO, Vec3::Y))
+                template_value(Transform::from_xyz(1_000_000.0, 1_500_000.0, 1_000_000.0).looking_at(Vec3::ZERO, Vec3::Y))
             )
         ]
     });

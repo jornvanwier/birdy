@@ -125,7 +125,7 @@ pub fn spawn_ship(
     };
 
     let fin_rot = Quat::from_rotation_z(std::f32::consts::FRAC_PI_2);
-    let initial_pos = Vec3::new(0.0, 1500.0, 10.0);
+    let initial_pos = Vec3::new(-1_000_000.0, 1500.0, 10.0);
 
     let ship_id =commands
         .spawn_scene(bsn! {

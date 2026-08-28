@@ -1,9 +1,7 @@
-use crate::input::Action;
 use crate::ship::Ship;
-use avian3d::prelude::AngularVelocity;
 
+use crate::ship::fcs::FlightControlCommand;
 use bevy::prelude::*;
-use leafwing_input_manager::prelude::*;
 
 #[derive(Component, Reflect, Eq, PartialEq, Copy, Clone, Default)]
 pub enum ControlSurfacePosition {
@@ -22,53 +20,33 @@ pub enum ControlSurfaceOrientation {
 }
 
 pub fn set_control_surface_targets(
-    ships: Query<
-        (
-            &ActionState<Action>,
-            &AngularVelocity,
-            &Transform,
-            &Children,
-        ),
-        With<Ship>,
-    >,
+    ships: Query<(&FlightControlCommand, &Children), With<Ship>>,
     mut actuators: Query<(&ControlSurfaceOrientation, &mut ControlSurfaceActuator)>,
 ) {
-    // Damping gains (rate gyro feedback)
-    const PITCH_RATE_GAIN: f32 = 0.50;
-    const ROLL_RATE_GAIN: f32 = 0.20;
-    const YAW_RATE_GAIN: f32 = 0.60;
-
-    for (action_state, ang_vel, transform, children) in &ships {
-        let Vec2 {
-            x: roll_in,
-            y: pitch_in,
-        } = action_state.clamped_axis_pair(&Action::RollPitch);
-        let yaw_in = action_state.value(&Action::Yaw);
-
-        // Convert world-space angular velocity into ship local space
-        let local_ang_vel = transform.rotation.inverse() * ang_vel.0;
-
-        // SAS adds an opposing deflection proportional to rotation speed in local frame
-        let pitch_cmd = pitch_in + local_ang_vel.x * PITCH_RATE_GAIN;
-        let roll_cmd = roll_in + local_ang_vel.z * ROLL_RATE_GAIN;
-        let yaw_cmd = yaw_in + local_ang_vel.y * YAW_RATE_GAIN;
+    for (command, children) in &ships {
+        let FlightControlCommand {
+            pitch: pitch_cmd,
+            roll: roll_cmd,
+            yaw: yaw_cmd,
+            ..
+        } = command;
 
         for child in children.iter() {
             if let Ok((orientation, mut actuator)) = actuators.get_mut(child) {
                 actuator.target_deflection = match *orientation {
-                    ControlSurfaceOrientation::Pitch => pitch_cmd,
+                    ControlSurfaceOrientation::Pitch => *pitch_cmd,
                     ControlSurfaceOrientation::Roll(side) => {
-                        roll_cmd
+                        *roll_cmd
                             * match side {
                                 ControlSurfacePosition::Left => 1.,
                                 ControlSurfacePosition::Right => -1.,
                             }
                     }
                     ControlSurfaceOrientation::RollPitch(side) => match side {
-                        ControlSurfacePosition::Left => pitch_cmd + roll_cmd,
-                        ControlSurfacePosition::Right => pitch_cmd - roll_cmd,
+                        ControlSurfacePosition::Left => *pitch_cmd + *roll_cmd,
+                        ControlSurfacePosition::Right => *pitch_cmd - *roll_cmd,
                     },
-                    ControlSurfaceOrientation::Yaw => yaw_cmd,
+                    ControlSurfaceOrientation::Yaw => *yaw_cmd,
                 }
                 .clamp(-1.0, 1.0);
             }

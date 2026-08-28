@@ -11,6 +11,7 @@ pub mod sensors;
 mod thrust;
 mod thrust_fx;
 pub mod weapon;
+pub mod fcs;
 
 use crate::environment::{CelestialBodyEnvironment, EnvironmentSet};
 use crate::ship::aero::FuselageDrag;
@@ -20,6 +21,7 @@ use crate::ship::weapon::RotaryGun;
 pub use aero::AeroSurface;
 pub use thrust::Thrust;
 use thrust_fx::{ThrusterEffectHandle, ThrusterParticle};
+use fcs::{FlightControlCommand, AttitudeHoldState};
 
 pub struct ShipPlugin;
 
@@ -61,6 +63,8 @@ impl Plugin for ShipPlugin {
                 (
                     // Control surface chain (set -> update)
                     (
+                        fcs::process_player_flight_inputs,
+                        fcs::apply_attitude_hold_assist,
                         control_surface::set_control_surface_targets,
                         control_surface::update_control_surfaces,
                     )
@@ -83,6 +87,8 @@ pub struct Player;
 #[require(
     CelestialBodyEnvironment,
     FlightSensorData,
+    FlightControlCommand,
+    AttitudeHoldState,
     RigidBody::Dynamic,
     CellCoord
 )]
@@ -125,7 +131,7 @@ pub fn spawn_ship(
     };
 
     let fin_rot = Quat::from_rotation_z(std::f32::consts::FRAC_PI_2);
-    let initial_pos = Vec3::new(-1_000_000.0, 1500.0, 10.0);
+    let initial_pos = Vec3::new(0.0, 1500.0, 10.0);
 
     let ship_id =commands
         .spawn_scene(bsn! {

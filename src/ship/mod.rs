@@ -3,7 +3,6 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_hanabi::{EffectProperties, ParticleEffect};
 use big_space::prelude::{BigSpace, CellCoord};
-use control_surface::{ControlSurfaceActuator, ControlSurfaceOrientation};
 
 mod aero;
 mod control_surface;
@@ -15,7 +14,7 @@ pub mod fcs;
 
 use crate::environment::{CelestialBodyEnvironment, EnvironmentSet};
 use crate::ship::aero::FuselageDrag;
-use crate::ship::control_surface::ControlSurfacePosition;
+use crate::ship::control_surface::{ControlMix, ControlSurfaceActuator};
 use crate::ship::sensors::{FlightSensorData, LiftAndDragMeasurement, ThrustMeasurement};
 use crate::ship::weapon::RotaryGun;
 pub use aero::AeroSurface;
@@ -193,7 +192,7 @@ pub fn spawn_ship(
                 (
                     #LeftAileron
                     template_value(AeroSurface { area: 2.5, ..wing_aero })
-                    template_value(ControlSurfaceOrientation::Roll(ControlSurfacePosition::Left))
+                    template_value(ControlMix::flaperon(1.0, 0.3),)
                     ControlSurfaceActuator {
                         max_angle: f32::to_radians(20.0),
                         speed: 10.0,
@@ -205,7 +204,7 @@ pub fn spawn_ship(
                 (
                     #RightAileron
                     template_value(AeroSurface { area: 2.5, ..wing_aero })
-                    template_value(ControlSurfaceOrientation::Roll(ControlSurfacePosition::Right))
+                    template_value(ControlMix::flaperon(-1.0, 0.3),)
                     ControlSurfaceActuator {
                         max_angle: f32::to_radians(20.0),
                         speed: 10.0,
@@ -219,7 +218,7 @@ pub fn spawn_ship(
                 (
                     #LeftTaileron
                     template_value(tail_aero)
-                    template_value(ControlSurfaceOrientation::RollPitch(ControlSurfacePosition::Left))
+                    ControlMix::taileron(1.0)
                     ControlSurfaceActuator {
                         max_angle: f32::to_radians(25.0),
                         speed: 8.0,
@@ -231,7 +230,7 @@ pub fn spawn_ship(
                 (
                     #RightTaileron
                     template_value(tail_aero)
-                    template_value(ControlSurfaceOrientation::RollPitch(ControlSurfacePosition::Right))
+                    ControlMix::taileron(-1.0)
                     ControlSurfaceActuator {
                         max_angle: f32::to_radians(25.0),
                         speed: 8.0,
@@ -252,7 +251,7 @@ pub fn spawn_ship(
                 (
                     #Rudder
                     template_value(AeroSurface { area: 1.5, ..vertical_fin_aero })
-                    template_value(ControlSurfaceOrientation::Yaw)
+                    template_value(ControlMix::YAW)
                     ControlSurfaceActuator {
                         max_angle: f32::to_radians(30.0),
                         speed: 7.0,
@@ -280,6 +279,16 @@ pub fn spawn_ship(
                     ParticleEffect::new(effect_handle.0.clone()),
                     EffectProperties::default(),
                     Transform::from_xyz(-x_offset * 1.5, 0.0, 4.2),
+                    // TODO add yaw TVC
+                    ControlMix {
+                        pitch: 1.0,
+                        roll: x_offset * 1.0,
+                        ..default() },
+                    ControlSurfaceActuator {
+                        max_angle: f32::to_radians(20.0),
+                        speed: 3.0,
+                        ..default()
+                    }
                 ));
             }
         }).id();

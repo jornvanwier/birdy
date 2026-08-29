@@ -3,52 +3,68 @@ use crate::ship::Ship;
 use crate::ship::fcs::FlightControlCommand;
 use bevy::prelude::*;
 
-#[derive(Component, Reflect, Eq, PartialEq, Copy, Clone, Default)]
-pub enum ControlSurfacePosition {
-    #[default]
-    Left,
-    Right,
+// src/ship/control_surface.rs
+
+#[derive(Component, Reflect, Clone, Copy, Debug, Default)]
+pub struct ControlMix {
+    pub pitch: f32, // -1.0 to 1.0 (authority & polarity)
+    pub roll: f32,
+    pub yaw: f32,
+    pub flaps: f32,
 }
 
-#[derive(Component, Reflect, Clone, Default)]
-pub enum ControlSurfaceOrientation {
-    #[default]
-    Pitch,
-    Roll(ControlSurfacePosition),
-    RollPitch(ControlSurfacePosition),
-    Yaw,
+#[allow(unused)]
+impl ControlMix {
+    pub const PITCH: Self = Self { pitch: 1.0, roll: 0.0, yaw: 0.0, flaps: 0.0 };
+    pub const YAW: Self = Self { pitch: 0.0, roll: 0.0, yaw: 1.0, flaps: 0.0 };
+
+    /// Standard ailerons (pure roll differential)
+    pub fn aileron(side_sign: f32) -> Self {
+        Self { roll: side_sign, ..default() }
+    }
+
+    /// Flaperon (roll + symmetric flap droop)
+    pub fn flaperon(side_sign: f32, flap_weight: f32) -> Self {
+        Self {
+            roll: side_sign * (1.0 - flap_weight),
+            flaps: flap_weight,
+            ..default()
+        }
+    }
+
+    /// Tailerons / Elevons (pitch + roll differential)
+    pub fn taileron(side_sign: f32) -> Self {
+        Self {
+            pitch: 1.0,
+            roll: side_sign * 0.5,
+            ..default()
+        }
+    }
+
+    /// Ruddervator (V-Tail / Canted surfaces: pitch + yaw)
+    pub fn ruddervator(side_sign: f32) -> Self {
+        Self {
+            pitch: 1.0,
+            yaw: side_sign,
+            ..default()
+        }
+    }
 }
 
 pub fn set_control_surface_targets(
     ships: Query<(&FlightControlCommand, &Children), With<Ship>>,
-    mut actuators: Query<(&ControlSurfaceOrientation, &mut ControlSurfaceActuator)>,
+    mut actuators: Query<(&ControlMix, &mut ControlSurfaceActuator)>,
 ) {
-    for (command, children) in &ships {
-        let FlightControlCommand {
-            pitch: pitch_cmd,
-            roll: roll_cmd,
-            yaw: yaw_cmd,
-            ..
-        } = command;
-
+    for (cmd, children) in &ships {
         for child in children.iter() {
-            if let Ok((orientation, mut actuator)) = actuators.get_mut(child) {
-                actuator.target_deflection = match *orientation {
-                    ControlSurfaceOrientation::Pitch => *pitch_cmd,
-                    ControlSurfaceOrientation::Roll(side) => {
-                        *roll_cmd
-                            * match side {
-                                ControlSurfacePosition::Left => 1.,
-                                ControlSurfacePosition::Right => -1.,
-                            }
-                    }
-                    ControlSurfaceOrientation::RollPitch(side) => match side {
-                        ControlSurfacePosition::Left => *pitch_cmd + *roll_cmd,
-                        ControlSurfacePosition::Right => *pitch_cmd - *roll_cmd,
-                    },
-                    ControlSurfaceOrientation::Yaw => *yaw_cmd,
-                }
-                .clamp(-1.0, 1.0);
+            if let Ok((mix, mut actuator)) = actuators.get_mut(child) {
+                // Vector dot product of commands and surface authority weights
+                let total_target = (cmd.pitch * mix.pitch)
+                    + (cmd.roll * mix.roll)
+                    + (cmd.yaw * mix.yaw)
+                    + (cmd.flaps * mix.flaps);
+
+                actuator.target_deflection = total_target.clamp(-1.0, 1.0);
             }
         }
     }

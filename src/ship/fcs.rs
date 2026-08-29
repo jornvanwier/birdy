@@ -11,6 +11,7 @@ pub struct FlightControlCommand {
     pub roll: f32,
     pub yaw: f32,
     pub throttle: f32,
+    pub flaps: f32,
 }
 
 #[derive(Component, Reflect, Clone)]
@@ -54,6 +55,7 @@ pub fn process_player_flight_inputs(
             roll,
             yaw,
             throttle,
+            flaps: 0.0, // FCS will automatically control flaps
         };
     }
 }
@@ -160,5 +162,15 @@ pub fn apply_attitude_hold_assist(
         // 3. YAW CHANNEL (Yaw Damper + Top-Rudder Assist + Pilot Pedals)
         // -----------------------------------------------------------------
         cmd.yaw = (yaw_input + auto_top_rudder + sensors.local_ang_vel.y * D_YAW).clamp(-1.0, 1.0);
+
+        // -----------------------------------------------------------------
+        // 4. AUTOMATIC FLAPS (Takeoff / Low-Speed Lift & High-AoA Maneuver)
+        // -----------------------------------------------------------------
+        // Fully deployed (1.0) under 50 m/s (takeoff), smoothly retracting to 0.0 by 120 m/s (cruise)
+        let low_speed_flap = ((120.0 - sensors.true_airspeed) / (120.0 - 50.0)).clamp(0.0, 1.0);
+
+        // Optional F-16 style Maneuver Flap: also droop flaps at high AoA to delay stall
+        let high_aoa_flap = ((sensors.aoa.to_degrees().abs() - 10.0) / 12.0).clamp(0.0, 1.0);
+        cmd.flaps = low_speed_flap.max(high_aoa_flap);
     }
 }

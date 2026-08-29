@@ -131,7 +131,18 @@ pub fn spawn_ship(
     };
 
     let fin_rot = Quat::from_rotation_z(std::f32::consts::FRAC_PI_2);
-    let initial_pos = Vec3::new(0.0, 1500.0, 10.0);
+    let initial_pos = Vec3::new(0.0, 10.0, 10.0);
+
+    fn gear(loc: Vec3) -> impl Scene {
+        bsn! {
+            Collider::cuboid(0.1, 2., 0.1)
+            Friction::ZERO
+            Restitution::ZERO
+            Mesh3d(asset_value(Cuboid::new(0.1, 2., 0.1)))
+            MeshMaterial3d<StandardMaterial>(asset_value(Color::srgb(0.1, 0.1, 0.1)))
+            Transform::from_translation(loc)
+        }
+    }
 
     let ship_id =commands
         .spawn_scene(bsn! {
@@ -155,6 +166,13 @@ pub fn spawn_ship(
             }
 
             Children [
+                // Nose gear (forward)
+                gear(Vec3::new(0.0, -2.0, -4.0)),
+
+                // Main gear: Move from Z = +3.5 to Z = +0.6 (just behind CoM at Z = 0.0)
+                gear(Vec3::new(-2.0, -2.0, 0.6)),
+                gear(Vec3::new( 2.0, -2.0, 0.6)),
+
                 // --- MAIN WINGS ---
                 (
                     #LeftWing
